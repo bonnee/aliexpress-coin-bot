@@ -8,6 +8,7 @@ __pycache__/
 
 # Chrome WebDriver
 chromedriver.exe
+chrome_data
 *.log
 
 # Virtual environment

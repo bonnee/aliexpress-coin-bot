@@ -1,0 +1,7 @@
+venv/
+drivers/
+__pycache__/
+*.pyc
+.env
+collection_log.txt
+.git/
