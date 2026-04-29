@@ -10,6 +10,7 @@ __pycache__/
 chromedriver.exe
 chrome_data
 *.log
+collection_log.txt
 
 # Virtual environment
 venv/

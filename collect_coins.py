@@ -75,20 +75,26 @@ def login(driver):
     """Perform the login process with human-like behavior, checking for existing session first"""
     try:
         print("Checking if already logged in...")
-        # Navigate to the Buyer Center which requires login
-        driver.get("https://home.aliexpress.com/index.htm")
-        random_sleep(3, 5)
+        # Visit the main page instead of the buyer center to avoid 500 errors
+        driver.get("https://www.aliexpress.com/")
+        random_sleep(5, 7)
         
-        # If we are logged in, the URL should contain 'home.aliexpress.com'
-        # If not, it usually redirects to 'login.aliexpress.com'
-        current_url = driver.current_url.lower()
+        # Look for indicators of being logged in
         page_source = driver.page_source.lower()
         
-        if "home.aliexpress.com" in current_url and ("sign out" in page_source or "logout" in page_source):
-            print("Confirmed: Already logged in via session cookies.")
+        # Multiple check points for login status
+        # We check for "Sign out" or "Logout" as primary indicators
+        # Also check for presence of account-specific links that only appear when logged in
+        is_logged_in = any(indicator in page_source for indicator in ["sign out", "logout", "my orders", "message center"])
+        
+        # Additional check: If "Sign in" or "Login" is NOT present, we might be logged in
+        # But "Sign out" is the most reliable.
+        
+        if is_logged_in:
+            print("Detected existing session (Logged in).")
             return True
 
-        print("Not logged in (redirected or 'Sign Out' not found). Starting login process...")
+        print("Not logged in (Indicators not found). Starting login process...")
         # Navigate to a direct login-triggering URL
         driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
         random_sleep(3, 5)
@@ -98,8 +104,9 @@ def login(driver):
         
         # Check if we are actually on a login page or if we bypassed it
         try:
+            # More generic selector for the email field
             email_input = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input.cosmos-input[label*='Email']"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='Email'], input[label*='Email'], #fm-login-id"))
             )
             print("Found email input field")
         except:
@@ -503,7 +510,46 @@ def find_and_click_collect_button(driver):
     print("*** WILL RESTART FROM STEP 1 (COUNTRY SELECTION) ***")
     return False
 
+def enable_mobile_emulation(driver):
+    """Enable mobile emulation to mimic an Android device with correct CDP parameters"""
+    try:
+        print("Switching to Android Mobile Emulation mode...")
+        # Correct CDP parameters for Emulation.setDeviceMetricsOverride
+        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+            "width": 360,
+            "height": 800,
+            "deviceScaleFactor": 3,
+            "mobile": True
+        })
+        # Enable touch emulation separately
+        driver.execute_cdp_cmd("Emulation.setTouchEmulationEnabled", {
+            "enabled": True,
+            "configuration": "mobile"
+        })
+        driver.execute_cdp_cmd("Network.setUserAgentOverride", {
+            "userAgent": "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+        })
+        random_sleep(2, 3)
+    except Exception as e:
+        print(f"Warning: Failed to enable mobile emulation: {e}")
+
+def disable_mobile_emulation(driver):
+    """Switch back to desktop mode correctly"""
+    try:
+        print("Switching back to Desktop mode...")
+        driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+        driver.execute_cdp_cmd("Emulation.setTouchEmulationEnabled", {"enabled": False})
+        driver.execute_cdp_cmd("Network.setUserAgentOverride", {
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+        })
+        random_sleep(1, 2)
+    except Exception as e:
+        print(f"Warning: Failed to disable mobile emulation: {e}")
+
 def main():
+    """Main function to run the coin collection process"""
+    # ... (Setup code same as before)
+
     """Main function to run the coin collection process"""
     # Set up Chrome options
     chrome_options = Options()
@@ -589,19 +635,24 @@ def main():
             
             # STEP 1-5: Change country to Korea (Step 6 is inside the function)
             print("RESTARTING FROM STEP 1: Changing country to Korea")
+            disable_mobile_emulation(driver) # Ensure we are in desktop mode for country change
             if change_country_to_korea(driver):
                 # After saving country, the page should reload with Korean interface
                 # Wait a bit for the page to reload/update
                 random_sleep(5, 7)
                 
+                # Switch to Mobile mode for the actual collection
+                enable_mobile_emulation(driver)
+                
                 # Navigate to the coin page
-                print("Going to coin page after country change.")
+                print("Going to coin page after country change (Mobile Emulation).")
                 driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
-                random_sleep(5, 7)
+                random_sleep(7, 10) # Give more time for mobile page to load
                 
                 # STEP 7: Look for the collect button
                 if find_and_click_collect_button(driver):
                     print("Successfully collected coins!")
+                    disable_mobile_emulation(driver)
                     break  # Exit the loop if successful
                 else:
                     print(f"Failed to find collect button on attempt {total_attempts}, restarting from Step 1")
@@ -612,9 +663,11 @@ def main():
                 # If we're on the last attempt and country change failed, try the coin page anyway
                 if total_attempts >= max_total_attempts:
                     print("Maximum attempts reached. Trying coin page directly as last resort...")
+                    enable_mobile_emulation(driver)
                     driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
-                    random_sleep(5, 7)
+                    random_sleep(7, 10)
                     find_and_click_collect_button(driver)
+                    disable_mobile_emulation(driver)
                 
         if total_attempts >= max_total_attempts:
             print("Maximum attempts reached without successful coin collection.")
