@@ -402,30 +402,42 @@ def verify_korea_selected(driver):
     try:
         wait = WebDriverWait(driver, 10)
         
-        # Look for ship-to text that contains Korea or 대한민국 (Republic of Korea in Korean)
-        ship_to_element = wait.until(
-            EC.presence_of_element_located((By.XPATH, 
-                "//div[contains(@class, 'ship-to--text--')]"))
-        )
+        # Multiple selectors for the ship-to element
+        selectors = [
+            "//div[contains(@class, 'ship-to--text--')]",
+            "//div[contains(@class, 'ship-to--menuItem--')]",
+            "//div[contains(@class, 'es--wrap--')]//div[contains(@class, 'ship-to--menuItem--')]",
+            "//div[contains(@class, 'header--right--')]//div[contains(@class, 'ship-to')]"
+        ]
         
-        # Get the text content
-        ship_to_text = ship_to_element.text
-        print(f"Current ship-to text: {ship_to_text}")
-        
-        # Special case for "KO/" which is a confirmed marker for Korean
-        if "KO/" in ship_to_text:
-            print("Found 'KO/' in ship-to text - Korea is definitely selected")
-            return "KO_FOUND"  # Special return value indicating KO/ was found
+        ship_to_element = None
+        for selector in selectors:
+            try:
+                ship_to_element = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
+                if ship_to_element:
+                    print(f"Found ship-to element with selector: {selector}")
+                    break
+            except:
+                continue
+                
+        if not ship_to_element:
+            print("Warning: Could not find ship-to element to verify country.")
+            return False
             
-        # Standard check for other indicators
+        # Get the text content and include child elements
+        ship_to_text = driver.execute_script("return arguments[0].innerText;", ship_to_element)
+        print(f"Current ship-to text detected: {ship_to_text}")
+        
+        # Standard check for indicators
         ship_to_text_lower = ship_to_text.lower()
-        korea_indicators = ['korea', '한국', '대한민국', 'kr', 'south korea', 'republic of korea']
+        # 'kr' is common in 'KR/USD', '한국' is Korea in Korean
+        korea_indicators = ['korea', '한국', '대한민국', ' south korea', 'republic of korea', 'ko/', 'kr/']
         
         if any(indicator in ship_to_text_lower for indicator in korea_indicators):
-            print("Korea is already selected as the country")
+            print("Confirmation: Korea is already selected as the country.")
             return True
         else:
-            print("Korea is NOT selected as the country")
+            print(f"Detected location text '{ship_to_text}', which does not match Korea indicators.")
             return False
             
     except Exception as e:
@@ -679,7 +691,25 @@ def main():
                 # Navigate to the coin page
                 print("Going to coin page after country change (Mobile Emulation).")
                 driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
-                random_sleep(7, 10) # Give more time for mobile page to load
+                
+                # Give it some time for initial load
+                random_sleep(5, 8)
+                
+                # Check if page is stuck/blank and needs a refresh
+                try:
+                    # Look for signs of life (any content in the body)
+                    body_text = driver.execute_script("return document.body ? document.body.innerText.length : 0;")
+                    if body_text < 100:  # Very little content likely means it's stuck or a blank loader
+                        print("Page seems stuck or blank. Triggering a refresh...")
+                        driver.refresh()
+                        random_sleep(8, 12)
+                    else:
+                        print("Page loaded content successfully.")
+                        random_sleep(2, 4)
+                except Exception as e:
+                    print(f"Error checking page content: {e}. Refreshing just in case.")
+                    driver.refresh()
+                    random_sleep(8, 12)
                 
                 # STEP 7: Look for the collect button
                 if find_and_click_collect_button(driver):
