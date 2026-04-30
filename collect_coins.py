@@ -83,12 +83,13 @@ def login(driver):
         page_source = driver.page_source.lower()
         
         # Multiple check points for login status
-        # We check for "Sign out" or "Logout" as primary indicators
-        # Also check for presence of account-specific links that only appear when logged in
-        is_logged_in = any(indicator in page_source for indicator in ["sign out", "logout", "my orders", "message center"])
-        
-        # Additional check: If "Sign in" or "Login" is NOT present, we might be logged in
-        # But "Sign out" is the most reliable.
+        # We check for "Sign out" or "Logout" as primary indicators (English and Korean)
+        # Also check for presence of account-specific links
+        login_indicators = [
+            "sign out", "logout", "my orders", "message center", "my coupons",
+            "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지"
+        ]
+        is_logged_in = any(indicator in page_source for indicator in login_indicators)
         
         if is_logged_in:
             print("Detected existing session (Logged in).")
@@ -306,12 +307,12 @@ def change_country_to_korea(driver):
             search_input.click()
             random_sleep(0.5, 1)
             
-            # Try with English first
+            # Try with English first, then Korean if needed
             search_term = "Korea"
             type_like_human(search_input, search_term)
             random_sleep(1, 2)
             
-            # Press ENTER as a shortcut
+            # Press ENTER
             search_input.send_keys(Keys.ENTER)
             random_sleep(1, 2)
             
@@ -319,12 +320,30 @@ def change_country_to_korea(driver):
             try:
                 korea_option = wait.until(
                     EC.element_to_be_clickable((By.XPATH, 
-                        "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., '대한민국'))]"))
+                        "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., '대한민국') or contains(., '한국'))]"))
                 )
                 print("Found Korea option in list. Clicking...")
                 driver.execute_script("arguments[0].click();", korea_option)
             except:
-                print("Korea option not found in list (might have been selected via Enter).")
+                # If not found with "Korea", try with "대한민국"
+                print("Korea not found with English term, trying Korean term...")
+                # Clear input first
+                search_input.send_keys(Keys.CONTROL + "a")
+                search_input.send_keys(Keys.BACKSPACE)
+                random_sleep(0.5, 1)
+                type_like_human(search_input, "대한민국")
+                random_sleep(1, 2)
+                search_input.send_keys(Keys.ENTER)
+                random_sleep(1, 2)
+                
+                try:
+                    korea_option = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, 
+                            "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., '대한민국') or contains(., '한국'))]"))
+                    )
+                    driver.execute_script("arguments[0].click();", korea_option)
+                except:
+                    print("Korea option still not found in list (might have been selected via Enter).")
             
             random_sleep(1.5, 2.5)
             
@@ -399,8 +418,11 @@ def verify_korea_selected(driver):
             return "KO_FOUND"  # Special return value indicating KO/ was found
             
         # Standard check for other indicators
-        if 'Korea' in ship_to_text or '한국' in ship_to_text or '대한민국' in ship_to_text:
-            print("Korea is selected as the country")
+        ship_to_text_lower = ship_to_text.lower()
+        korea_indicators = ['korea', '한국', '대한민국', 'kr', 'south korea', 'republic of korea']
+        
+        if any(indicator in ship_to_text_lower for indicator in korea_indicators):
+            print("Korea is already selected as the country")
             return True
         else:
             print("Korea is NOT selected as the country")
@@ -417,11 +439,12 @@ def find_and_click_collect_button(driver):
     
     # List of possible selectors for the collect button - ordered from most to least specific
     collect_button_selectors = [
-        "//div[contains(@class, 'checkin-button')]",
+        "//*[@id='signButton' or contains(@class, 'checkin-button')]", # Combined ID and Class
         "//div[contains(text(), 'Collect') and contains(@class, 'button')]",
         "//div[contains(text(), '출석체크') and contains(@class, 'button')]",  # Korean for "attendance check"
         "//div[contains(text(), '적립하기') and contains(@class, 'button')]",   # Korean for "collect"
         "//div[contains(text(), '체크인') and contains(@class, 'button')]",     # Korean for "check-in"
+        "//div[contains(text(), '받기') and contains(@class, 'button')]",     # Korean for "check-in"
         "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]",
         "//div[contains(@class, 'coin') and contains(@class, 'collect')]",
     ]
@@ -633,14 +656,23 @@ def main():
             total_attempts += 1
             print(f"Starting collection attempt {total_attempts}/{max_total_attempts}")
             
-            # STEP 1-5: Change country to Korea (Step 6 is inside the function)
-            print("RESTARTING FROM STEP 1: Changing country to Korea")
-            disable_mobile_emulation(driver) # Ensure we are in desktop mode for country change
-            if change_country_to_korea(driver):
-                # After saving country, the page should reload with Korean interface
-                # Wait a bit for the page to reload/update
+            # STEP 1-5: Change country to Korea
+            print("Checking if country change to Korea is needed...")
+            disable_mobile_emulation(driver) # Desktop mode for check/change
+            
+            is_already_korea = verify_korea_selected(driver)
+            
+            should_proceed = False
+            if is_already_korea:
+                print("Country is already Korea. Proceeding to collection.")
+                should_proceed = True
+            elif change_country_to_korea(driver):
+                print("Country successfully changed to Korea.")
+                should_proceed = True
+                # Wait a bit for the page to reload/update after change
                 random_sleep(5, 7)
-                
+            
+            if should_proceed:
                 # Switch to Mobile mode for the actual collection
                 enable_mobile_emulation(driver)
                 
