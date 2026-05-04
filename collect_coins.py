@@ -109,21 +109,24 @@ def load_cookies(driver, path=COOKIE_FILE):
         with open(path, 'r') as f:
             cookies = json.load(f)
             
+        print(f"Applying {len(cookies)} cookies from {path}...")
         # We must be on the domain to add cookies for it
         driver.get("https://www.aliexpress.com/")
         random_sleep(2, 3)
         
+        count = 0
         for cookie in cookies:
             try:
                 # Selenium doesn't like 'expiry' in some cases if it's not an int
                 if 'expiry' in cookie:
                     cookie['expiry'] = int(cookie['expiry'])
                 driver.add_cookie(cookie)
+                count += 1
             except Exception as e:
                 # Skip problematic cookies
                 continue
                 
-        print(f"Loaded {len(cookies)} cookies from {path}")
+        print(f"Successfully loaded {count}/{len(cookies)} cookies.")
         driver.refresh()
         random_sleep(3, 5)
         return True
@@ -210,9 +213,19 @@ def login(driver):
         # Multiple check points for login status
         login_indicators = [
             "sign out", "logout", "my orders", "message center", "my coupons",
-            "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지"
+            "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지",
+            "account", "orders", "wish list", "쿠폰", "센터"
         ]
         is_logged_in = any(indicator in page_source for indicator in login_indicators)
+        
+        # Fallback: check for specific account elements that might be in the DOM but text not found
+        if not is_logged_in:
+            try:
+                # Check for account flyout or user profile elements
+                driver.find_element(By.CSS_SELECTOR, ".user-account-port, .nav-user-account, .account-unsigned, .account-signed")
+                is_logged_in = True
+            except:
+                pass
         
         if is_logged_in:
             print("Detected existing session (Logged in).")
@@ -234,16 +247,21 @@ def login(driver):
         
         # Check if we are actually on a login page or if we bypassed it
         try:
-            # More generic selector for the email field
+            # More generic selector for the email field - added more variants
             email_input = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='Email'], input[label*='Email'], #fm-login-id"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='Email'], input[label*='Email'], #fm-login-id, input[name='loginId']"))
             )
             print("Found email input field")
         except:
             # Re-check if we are logged in - maybe the redirect just took a moment
-            if "sign out" in driver.page_source.lower():
-                print("Bypassed login, 'Sign Out' detected.")
+            page_source = driver.page_source.lower()
+            if any(ind in page_source for ind in ["sign out", "logout", "로그아웃"]):
+                print("Bypassed login, login indicator detected.")
                 return True
+            
+            # Take a screenshot if we can't find login fields
+            if USE_TELEGRAM:
+                asyncio.run(send_telegram_screenshot(driver, "⚠️ Could not find login fields. Check the page state."))
             print("Error: Could not find login fields nor 'Sign Out' indicator.")
             return False
         
@@ -543,42 +561,40 @@ def change_country_to_korea(driver):
             random_sleep(0.5, 1)
             
             # Try with English first, then Korean if needed
-            search_term = "Korea"
-            type_like_human(search_input, search_term)
-            random_sleep(1, 2)
+            search_input.click()
+            random_sleep(0.5, 1)
             
-            # Press ENTER
-            search_input.send_keys(Keys.ENTER)
-            random_sleep(1, 2)
+            # Type 'Korea' and wait for dropdown
+            type_like_human(search_input, "Korea")
+            random_sleep(2, 3)
             
-            # Check if search result is visible and needs clicking
             try:
+                # Look for Korea option
                 korea_option = wait.until(
                     EC.element_to_be_clickable((By.XPATH, 
-                        "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., '대한민국') or contains(., '한국'))]"))
+                        "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., 'South Korea'))]"))
                 )
-                print("Found Korea option in list. Clicking...")
+                print("Found Korea option (English). Clicking...")
                 driver.execute_script("arguments[0].click();", korea_option)
             except:
-                # If not found with "Korea", try with "대한민국"
-                print("Korea not found with English term, trying Korean term...")
-                # Clear input first
+                print("Korea not found with English term, trying Korean term '대한민국'...")
                 search_input.send_keys(Keys.CONTROL + "a")
                 search_input.send_keys(Keys.BACKSPACE)
                 random_sleep(0.5, 1)
                 type_like_human(search_input, "대한민국")
-                random_sleep(1, 2)
-                search_input.send_keys(Keys.ENTER)
-                random_sleep(1, 2)
+                random_sleep(2, 3)
                 
                 try:
                     korea_option = wait.until(
                         EC.element_to_be_clickable((By.XPATH, 
-                            "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., '대한민국') or contains(., '한국'))]"))
+                            "//div[contains(@class, 'select--item') and (contains(., '대한민국') or contains(., '한국'))]"))
                     )
+                    print("Found Korea option (Korean). Clicking...")
                     driver.execute_script("arguments[0].click();", korea_option)
                 except:
-                    print("Korea option still not found in list (might have been selected via Enter).")
+                    # Last resort: try pressing Enter if anything is selected
+                    print("Could not find Korea in list, attempting to submit search with Enter...")
+                    search_input.send_keys(Keys.ENTER)
             
             random_sleep(1.5, 2.5)
             
@@ -684,55 +700,45 @@ def find_and_click_collect_button(driver):
     print("STEP 7: Looking for the Collect button...")
     wait = WebDriverWait(driver, 15)
     
-    # List of possible selectors for the collect button - ordered from most to least specific
+    # List of possible selectors for the collect button
     collect_button_selectors = [
-        "//*[@id='signButton' or contains(@class, 'checkin-button')]", # Combined ID and Class
-        "//div[contains(text(), 'Collect') and contains(@class, 'button')]",
-        "//div[contains(text(), '출석체크') and contains(@class, 'button')]",  # Korean for "attendance check"
-        "//div[contains(text(), '적립하기') and contains(@class, 'button')]",   # Korean for "collect"
-        "//div[contains(text(), '체크인') and contains(@class, 'button')]",     # Korean for "check-in"
-        "//div[contains(text(), '받기') and contains(@class, 'button')]",     # Korean for "check-in"
-        "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]",
-        "//div[contains(@class, 'coin') and contains(@class, 'collect')]",
+        "//*[@id='signButton' or contains(@class, 'checkin-button')]",
+        "//div[contains(@class, 'button') and (contains(., 'Collect') or contains(., '출석') or contains(., '적립'))]",
+        "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]"
     ]
     
-    # Try each selector until one works
     for selector in collect_button_selectors:
         try:
-            print(f"Trying to find collect button with selector: {selector}")
             collect_button = wait.until(
                 EC.presence_of_element_located((By.XPATH, selector))
             )
-            print(f"Found the Collect button using selector: {selector}")
             
-            # Highlight the button to make it more visible
+            # Check text to see if already collected
+            button_text = driver.execute_script("return arguments[0].innerText;", collect_button).lower()
+            already_collected_keywords = [
+                'already', 'checked', 'collected', '받기 완료', '완료', '이미', 
+                'guadagna più monete', 'get more coins'
+            ]
+            
+            if any(k in button_text for k in already_collected_keywords):
+                print(f"Detected button text: '{button_text.strip()}'. Coins already redeemed for this session.")
+                return True # Treat as success since there's nothing left to do
+            
+            print(f"Found Collect button (Text: '{button_text.strip()}'). Clicking...")
             driver.execute_script("arguments[0].style.border='3px solid red'", collect_button)
             random_sleep(1, 2)
-            
-            # Scroll to make button visible if needed
             driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", collect_button)
             random_sleep(1, 2)
             
-            # Try to click button with several methods
             try:
-                # Move mouse naturally to the button first
                 move_mouse_randomly(driver, collect_button)
-                
-                # Try normal click
                 collect_button.click()
-                print("Clicked collect button using normal click")
-            except Exception as e:
-                print(f"Normal click failed: {e}, trying JavaScript click")
+            except:
                 driver.execute_script("arguments[0].click();", collect_button)
-                print("Clicked collect button using JavaScript")
             
-            # Wait after clicking to see the result
             random_sleep(5, 7)
-            print("Collect button clicked successfully")
             return True
-            
-        except Exception as e:
-            print(f"Couldn't find or click collect button with selector {selector}: {e}")
+        except:
             continue
     
     # If no button found, try a more aggressive approach - look for any clickable element that might be the collect button
@@ -923,6 +929,13 @@ def main():
     })
     
     try:
+        # Check cookie file age
+        if os.path.exists(COOKIE_FILE):
+            import datetime
+            mtime = os.path.getmtime(COOKIE_FILE)
+            last_mod = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"Found {COOKIE_FILE} (Last modified: {last_mod})")
+
         # Navigate to the website
         driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
         print("Website loaded")
@@ -974,14 +987,22 @@ def main():
                 
                 # Check if page is stuck/blank and needs a refresh
                 try:
-                    # Look for signs of life (any content in the body)
-                    body_text = driver.execute_script("return document.body ? document.body.innerText.length : 0;")
-                    if body_text < 100:  # Very little content likely means it's stuck or a blank loader
-                        print("Page seems stuck or blank. Triggering a refresh...")
+                    # Look for signs of life (any content in the body or specific coin page elements)
+                    # We check for canvas (common in the game) or the check-in button ID
+                    page_content_check = driver.execute_script("""
+                        return {
+                            textLength: document.body ? document.body.innerText.length : 0,
+                            hasCanvas: document.querySelectorAll('canvas').length > 0,
+                            hasButton: document.querySelectorAll('#signButton, [class*="checkin-button"]').length > 0
+                        };
+                    """)
+                    
+                    if page_content_check['textLength'] < 100 and not page_content_check['hasCanvas'] and not page_content_check['hasButton']:
+                        print("Page seems stuck or blank (No text, canvas, or button). Triggering a refresh...")
                         driver.refresh()
-                        random_sleep(8, 12)
+                        random_sleep(10, 15) # Longer wait after refresh
                     else:
-                        print("Page loaded content successfully.")
+                        print(f"Page loaded content (Text: {page_content_check['textLength']}, Canvas: {page_content_check['hasCanvas']}, Button: {page_content_check['hasButton']}).")
                         random_sleep(2, 4)
                 except Exception as e:
                     print(f"Error checking page content: {e}. Refreshing just in case.")
