@@ -395,7 +395,8 @@ def login(driver):
                         verification_code = asyncio.run(get_2fa_from_telegram())
                     else:
                         if HEADLESS:
-                            print("WARNING: 2FA required in headless mode but Telegram is not configured.")
+                            print("CRITICAL: 2FA required in headless mode but Telegram is not configured. Cannot proceed.")
+                            return False
                         verification_code = input("Enter verification code: ").strip()
                     
                     if verification_code:
