@@ -88,6 +88,27 @@ You can set up Windows Task Scheduler to run the script automatically once per d
    - Go to the "Settings" tab and uncheck "Stop the task if it runs longer than..."
    - Click "OK" to save the task
 
+### Telegram 2FA Handling (Headless Mode)
+
+If you run the script in a remote headless environment (like a server), you can use a Telegram bot to provide the 2FA verification code when requested.
+
+1.  **Create a Telegram Bot**:
+    -   Message [@BotFather](https://t.me/botfather) on Telegram.
+    -   Use the `/newbot` command to create a bot and get your **API Token**.
+2.  **Get your Chat ID**:
+    -   Message [@userinfobot](https://t.me/userinfobot) to get your personal **Chat ID**.
+3.  **Update `.env`**:
+    ```env
+    TELEGRAM_BOT_TOKEN=your_bot_token_here
+    TELEGRAM_CHAT_ID=your_chat_id_here
+    ```
+4.  **Install Requirements**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+When AliExpress requires email verification, the bot will message you. Simply reply with the code, and the script will continue.
+
 ### Important Notes about Automation
 
 - The script requires manual confirmation steps, so fully unattended operation isn't possible with the current version

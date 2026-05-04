@@ -3,5 +3,7 @@ drivers/
 __pycache__/
 *.pyc
 .env
+cookies.json
+chrome_data/
 collection_log.txt
 .git/

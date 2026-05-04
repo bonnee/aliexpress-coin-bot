@@ -9,6 +9,8 @@ __pycache__/
 # Chrome WebDriver
 chromedriver.exe
 chrome_data
+cookies.json
+debug_screenshot.png
 *.log
 collection_log.txt
 

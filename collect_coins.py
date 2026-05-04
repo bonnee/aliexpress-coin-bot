@@ -2,6 +2,8 @@ import time
 import random
 import os
 import sys
+import asyncio
+import json
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -12,6 +14,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
+
+# Import Telegram if configured
+try:
+    from telegram import Bot
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
 
 
 # === FORCE UTF-8 OUTPUT ===
@@ -26,6 +35,13 @@ ALIEXPRESS_EMAIL = os.getenv("ALIEXPRESS_EMAIL")
 ALIEXPRESS_PASSWORD = os.getenv("ALIEXPRESS_PASSWORD")
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 USER_DATA_DIR = os.getenv("USER_DATA_DIR")  # Default to None for local dev
+
+# Telegram configuration
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+USE_TELEGRAM = TELEGRAM_AVAILABLE and TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+
+COOKIE_FILE = os.getenv("COOKIE_FILE", "cookies/cookies.json")
 
 # Check if credentials are available
 if not ALIEXPRESS_EMAIL or not ALIEXPRESS_PASSWORD:
@@ -71,20 +87,127 @@ def type_like_human(element, text):
         if random.random() < 0.05:
             random_sleep(0.5, 1.2)
 
+def save_cookies(driver, path=COOKIE_FILE):
+    """Save cookies from the current session to a JSON file"""
+    try:
+        cookies = driver.get_cookies()
+        with open(path, 'w') as f:
+            json.dump(cookies, f)
+        print(f"Cookies saved to {path}")
+        return True
+    except Exception as e:
+        print(f"Failed to save cookies: {e}")
+        return False
+
+def load_cookies(driver, path=COOKIE_FILE):
+    """Load cookies from a JSON file into the current session"""
+    try:
+        if not os.path.exists(path):
+            print(f"No cookie file found at {path}")
+            return False
+            
+        with open(path, 'r') as f:
+            cookies = json.load(f)
+            
+        # We must be on the domain to add cookies for it
+        driver.get("https://www.aliexpress.com/")
+        random_sleep(2, 3)
+        
+        for cookie in cookies:
+            try:
+                # Selenium doesn't like 'expiry' in some cases if it's not an int
+                if 'expiry' in cookie:
+                    cookie['expiry'] = int(cookie['expiry'])
+                driver.add_cookie(cookie)
+            except Exception as e:
+                # Skip problematic cookies
+                continue
+                
+        print(f"Loaded {len(cookies)} cookies from {path}")
+        driver.refresh()
+        random_sleep(3, 5)
+        return True
+    except Exception as e:
+        print(f"Failed to load cookies: {e}")
+        return False
+
+async def send_telegram_screenshot(driver, caption=""):
+    """Take a screenshot and send it via Telegram for debugging"""
+    if not USE_TELEGRAM:
+        return False
+        
+    try:
+        screenshot_path = "debug_screenshot.png"
+        driver.save_screenshot(screenshot_path)
+        
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        with open(screenshot_path, 'rb') as photo:
+            await bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=photo, caption=caption)
+        
+        os.remove(screenshot_path)
+        return True
+    except Exception as e:
+        print(f"Failed to send screenshot to Telegram: {e}")
+        return False
+
+async def get_2fa_from_telegram():
+    """Wait for a 2FA code to be sent via Telegram"""
+    if not USE_TELEGRAM:
+        return None
+        
+    try:
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        message = "🚨 *AliExpress 2FA Required*\n\nPlease check your email and send the verification code here."
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode='Markdown')
+        print(f"Sent 2FA request to Telegram chat {TELEGRAM_CHAT_ID}")
+        
+        # Get the latest update ID to ignore old messages
+        last_update_id = -1
+        updates = await bot.get_updates(offset=-1, timeout=10)
+        if updates:
+            last_update_id = updates[0].update_id
+            
+        print("Waiting for Telegram response...")
+        # Poll for new messages
+        start_time = time.time()
+        timeout = 300  # 5 minutes timeout
+        
+        while time.time() - start_time < timeout:
+            updates = await bot.get_updates(offset=last_update_id + 1, timeout=30)
+            for update in updates:
+                if update.message and str(update.message.chat_id) == str(TELEGRAM_CHAT_ID) and update.message.text:
+                    code = update.message.text.strip()
+                    if code.isdigit() and (len(code) == 6 or len(code) == 4):
+                        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"✅ Received code: {code}. Continuing login...")
+                        return code
+                    else:
+                        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"⚠️ Received '{code}', but it doesn't look like a 6-digit or 4-digit code. Please try again.")
+                last_update_id = update.update_id
+            await asyncio.sleep(2)
+            
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="❌ Timeout: No valid 2FA code received within 5 minutes.")
+        return None
+    except Exception as e:
+        print(f"Error interacting with Telegram: {e}")
+        return None
+
 def login(driver):
     """Perform the login process with human-like behavior, checking for existing session first"""
     try:
         print("Checking if already logged in...")
-        # Visit the main page instead of the buyer center to avoid 500 errors
-        driver.get("https://www.aliexpress.com/")
-        random_sleep(5, 7)
+        
+        # Try to load cookies if they exist
+        if os.path.exists(COOKIE_FILE):
+            print("Found cookies.json, attempting to load session...")
+            load_cookies(driver)
+        else:
+            driver.get("https://www.aliexpress.com/")
+            random_sleep(5, 7)
         
         # Look for indicators of being logged in
         page_source = driver.page_source.lower()
         
         # Multiple check points for login status
-        # We check for "Sign out" or "Logout" as primary indicators (English and Korean)
-        # Also check for presence of account-specific links
         login_indicators = [
             "sign out", "logout", "my orders", "message center", "my coupons",
             "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지"
@@ -93,11 +216,17 @@ def login(driver):
         
         if is_logged_in:
             print("Detected existing session (Logged in).")
+            # Refresh cookies if we just logged in
+            save_cookies(driver)
             return True
 
         print("Not logged in (Indicators not found). Starting login process...")
         # Navigate to a direct login-triggering URL
         driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
+        random_sleep(3, 5)
+
+        # ... (rest of the login logic remains the same until 2FA) ...
+
         random_sleep(3, 5)
 
         # Wait for the email input field
@@ -201,69 +330,118 @@ def login(driver):
         
         # --- Check for Email Verification / 2FA ---
         random_sleep(3, 5)
-        page_source_after_signin = driver.page_source.lower()
         
-        verification_keywords = ["verification code", "verify your identity", "enter code", "sent to your email", "인증 번호"]
-        if any(keyword in page_source_after_signin for keyword in verification_keywords):
+        # Helper to check for 2FA keywords in page and iframes
+        def check_for_2fa(driver):
+            source = driver.page_source.lower()
+            keywords = ["verification code", "verify your identity", "enter code", "sent to your email", "인증 번호", "security verification"]
+            if any(k in source for k in keywords):
+                return True
+            
+            # Check iframes
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            for iframe in iframes:
+                try:
+                    driver.switch_to.frame(iframe)
+                    inner_source = driver.page_source.lower()
+                    driver.switch_to.default_content()
+                    if any(k in inner_source for k in keywords):
+                        return True
+                except:
+                    driver.switch_to.default_content()
+            return False
+
+        if check_for_2fa(driver):
             print("\n" + "!" * 50)
             print("ACTION REQUIRED: Email Verification Detected!")
+            if USE_TELEGRAM:
+                asyncio.run(send_telegram_screenshot(driver, "🚨 AliExpress 2FA Detected!"))
             print("Please check your email and enter the verification code below.")
             print("!" * 50 + "\n")
             
             # Try to find the input field for the code
             try:
-                # Common selectors for verification code inputs
-                code_selectors = [
-                    "input[placeholder*='code']", 
-                    "input[id*='checkcode']", 
-                    ".next-input.next-large input",
-                    "input[name='checkCode']"
-                ]
-                
-                code_input = None
-                for selector in code_selectors:
-                    try:
-                        code_input = driver.find_element(By.CSS_SELECTOR, selector)
-                        if code_input.is_displayed():
-                            break
-                    except:
-                        continue
+                # Helper to find code input, including in iframes
+                def find_code_input(driver):
+                    selectors = [
+                        "input[placeholder*='code']", "input[id*='checkcode']", 
+                        ".next-input.next-large input", "input[name='checkCode']",
+                        "input[class*='checkcode']", "input[aria-label*='code']"
+                    ]
+                    for s in selectors:
+                        try:
+                            el = driver.find_element(By.CSS_SELECTOR, s)
+                            if el.is_displayed(): return el
+                        except: continue
+                    
+                    # Try iframes
+                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
+                    for iframe in iframes:
+                        try:
+                            driver.switch_to.frame(iframe)
+                            for s in selectors:
+                                try:
+                                    el = driver.find_element(By.CSS_SELECTOR, s)
+                                    if el.is_displayed(): return el # Note: staying in iframe if found
+                                except: continue
+                            driver.switch_to.default_content()
+                        except: driver.switch_to.default_content()
+                    return None
+
+                code_input = find_code_input(driver)
                 
                 if code_input:
-                    verification_code = input("Enter verification code: ").strip()
-                    type_like_human(code_input, verification_code)
-                    random_sleep(1, 2)
+                    if USE_TELEGRAM:
+                        verification_code = asyncio.run(get_2fa_from_telegram())
+                    else:
+                        if HEADLESS:
+                            print("WARNING: 2FA required in headless mode but Telegram is not configured.")
+                        verification_code = input("Enter verification code: ").strip()
                     
-                    # Try to find and click submit/verify button
-                    try:
-                        verify_btn = driver.find_element(By.XPATH, "//button[contains(., 'Verify') or contains(., 'Submit') or contains(., '확인')]")
-                        verify_btn.click()
+                    if verification_code:
+                        type_like_human(code_input, verification_code)
+                        random_sleep(1, 2)
+                        
+                        # Try to find and click submit/verify button
+                        try:
+                            verify_btn = driver.find_element(By.XPATH, "//button[contains(., 'Verify') or contains(., 'Submit') or contains(., '확인') or contains(., 'OK')]")
+                            verify_btn.click()
+                        except:
+                            code_input.send_keys(Keys.ENTER)
+                        
                         print("Verification code submitted.")
-                    except:
-                        code_input.send_keys(Keys.ENTER)
-                        print("Submitted verification code via Enter key.")
+                        driver.switch_to.default_content() # Ensure we're back
+                    else:
+                        print("No verification code provided.")
                 else:
                     print("Could not find verification code input field automatically.")
-                    print("Please enter it manually in the browser window if visible.")
-                    input("Press Enter here once you have finished the verification in the browser...")
+                    if USE_TELEGRAM:
+                        asyncio.run(send_telegram_screenshot(driver, "🚨 2FA detected but I couldn't find the input field automatically."))
+                    
+                    if not HEADLESS:
+                        input("Press Enter here once you have finished the verification in the browser...")
             except Exception as ve:
                 print(f"Error handling verification: {ve}")
-                input("Please handle the verification manually and press Enter here when done...")
+                driver.switch_to.default_content()
 
         # Wait for login to complete
-        # Give more time for the login process to complete
         random_sleep(5, 7)
         
         # Final check if login was actually successful
         if any(indicator in driver.page_source.lower() for indicator in ["sign out", "logout", "로그아웃"]):
             print("Login successful")
+            save_cookies(driver)
             return True
         else:
-            print("Login check failed after verification/signin. Please check the browser.")
+            print("Login check failed. Please check the browser/screenshot.")
+            if USE_TELEGRAM:
+                asyncio.run(send_telegram_screenshot(driver, "❌ Login failed. Check the state of the page."))
             return False
     
     except Exception as e:
         print(f"Login failed: {e}")
+        if USE_TELEGRAM:
+            asyncio.run(send_telegram_screenshot(driver, f"❌ Login exception: {e}"))
         return False
 
 def change_country_to_korea(driver):
@@ -658,16 +836,28 @@ def main():
         print(f"Warning: Could not set up persistent profile directory: {e}")
         print("Continuing with a temporary profile (cookies will not be saved).")
 
+    # Ensure HOME is set for Chromium (crucial for systemd)
+    if "HOME" not in os.environ:
+        os.environ["HOME"] = "/tmp"
+        print("Warning: HOME environment variable was not set. Defaulting to /tmp")
+
     if HEADLESS:
         print("Running in headless mode")
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-setuid-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--disable-gpu-sandbox")
+        chrome_options.add_argument("--disable-software-rasterizer")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--disable-background-networking")
+        chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--remote-debugging-port=9222")
 
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Helps avoid detection
-    chrome_options.add_argument("--start-maximized")  # Start with maximized window
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--start-maximized")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     
@@ -675,13 +865,36 @@ def main():
     try:
         # Check if we are in a Linux environment where we might have a system-installed driver
         if sys.platform.startswith("linux"):
+            # Try to find system-installed Chromium binary
+            potential_binaries = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"]
+            binary_path = next((p for p in potential_binaries if os.path.exists(p)), None)
+            
+            if binary_path:
+                print(f"Found system Chromium binary at: {binary_path}")
+                chrome_options.binary_location = binary_path
+                # Enhanced Internal check
+                try:
+                    import subprocess
+                    check = subprocess.run([binary_path, "--version"], capture_output=True, text=True, timeout=5)
+                    if check.returncode == 0:
+                        print(f"Chromium version check OK: {check.stdout.strip()}")
+                    else:
+                        print(f"Chromium version check FAILED (Code {check.returncode}): {check.stderr.strip()}")
+                except Exception as ce:
+                    print(f"Chromium execution check failed: {ce}")
+
             # Try to find system-installed chromedriver
-            potential_paths = ["/usr/bin/chromedriver", "/usr/local/bin/chromedriver"]
-            driver_path = next((p for p in potential_paths if os.path.exists(p)), None)
+            potential_drivers = ["/usr/bin/chromedriver", "/usr/local/bin/chromedriver"]
+            driver_path = next((p for p in potential_drivers if os.path.exists(p)), None)
             
             if driver_path:
                 print(f"Using system ChromeDriver at: {driver_path}")
-                service = Service(driver_path)
+                # Enable verbose logging
+                service = Service(
+                    executable_path=driver_path,
+                    log_output="chromedriver.log",
+                    service_args=["--verbose"]
+                )
             else:
                 print("System ChromeDriver not found, using ChromeDriverManager")
                 service = Service(ChromeDriverManager().install())
@@ -694,6 +907,13 @@ def main():
         print("WebDriver initialized successfully")
     except Exception as e:
         print(f"Failed to initialize WebDriver: {e}")
+        if os.path.exists("chromedriver.log"):
+            print("\n--- LAST 20 LINES OF CHROMEDRIVER LOG ---")
+            with open("chromedriver.log", "r") as f:
+                lines = f.readlines()
+                for line in lines[-20:]:
+                    print(line.strip())
+        print("\nPossible fix: Try running: rm -rf /app/chrome_data/*")
         return
     
     # Set a realistic user agent
