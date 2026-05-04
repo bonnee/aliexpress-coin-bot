@@ -199,12 +199,68 @@ def login(driver):
             
         print("Clicked sign in button")
         
+        # --- Check for Email Verification / 2FA ---
+        random_sleep(3, 5)
+        page_source_after_signin = driver.page_source.lower()
+        
+        verification_keywords = ["verification code", "verify your identity", "enter code", "sent to your email", "인증 번호"]
+        if any(keyword in page_source_after_signin for keyword in verification_keywords):
+            print("\n" + "!" * 50)
+            print("ACTION REQUIRED: Email Verification Detected!")
+            print("Please check your email and enter the verification code below.")
+            print("!" * 50 + "\n")
+            
+            # Try to find the input field for the code
+            try:
+                # Common selectors for verification code inputs
+                code_selectors = [
+                    "input[placeholder*='code']", 
+                    "input[id*='checkcode']", 
+                    ".next-input.next-large input",
+                    "input[name='checkCode']"
+                ]
+                
+                code_input = None
+                for selector in code_selectors:
+                    try:
+                        code_input = driver.find_element(By.CSS_SELECTOR, selector)
+                        if code_input.is_displayed():
+                            break
+                    except:
+                        continue
+                
+                if code_input:
+                    verification_code = input("Enter verification code: ").strip()
+                    type_like_human(code_input, verification_code)
+                    random_sleep(1, 2)
+                    
+                    # Try to find and click submit/verify button
+                    try:
+                        verify_btn = driver.find_element(By.XPATH, "//button[contains(., 'Verify') or contains(., 'Submit') or contains(., '확인')]")
+                        verify_btn.click()
+                        print("Verification code submitted.")
+                    except:
+                        code_input.send_keys(Keys.ENTER)
+                        print("Submitted verification code via Enter key.")
+                else:
+                    print("Could not find verification code input field automatically.")
+                    print("Please enter it manually in the browser window if visible.")
+                    input("Press Enter here once you have finished the verification in the browser...")
+            except Exception as ve:
+                print(f"Error handling verification: {ve}")
+                input("Please handle the verification manually and press Enter here when done...")
+
         # Wait for login to complete
         # Give more time for the login process to complete
         random_sleep(5, 7)
-        print("Login successful")
         
-        return True
+        # Final check if login was actually successful
+        if any(indicator in driver.page_source.lower() for indicator in ["sign out", "logout", "로그아웃"]):
+            print("Login successful")
+            return True
+        else:
+            print("Login check failed after verification/signin. Please check the browser.")
+            return False
     
     except Exception as e:
         print(f"Login failed: {e}")
