@@ -43,6 +43,86 @@ USE_TELEGRAM = TELEGRAM_AVAILABLE and TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 
 COOKIE_FILE = os.getenv("COOKIE_FILE", "cookies/cookies.json")
 
+# === CONFIGURATION PARAMETERS ===
+CONFIG = {
+    "URLS": {
+        "HOME": "https://www.aliexpress.com/",
+        "LOGIN_REDIRECT": "https://s.click.aliexpress.com/e/_DB2kEjh",
+        "COIN_MOBILE": "https://s.click.aliexpress.com/e/_DB2kEjh",
+        "COIN_DESKTOP": "https://www.aliexpress.com/p/coin-pc-index/index.html"
+    },
+    "SELECTORS": {
+        "SHIP_TO": [
+            "//div[contains(@class, 'ship-to--menuItem')]",
+            "//div[contains(@class, 'ship-to--text')]",
+            "//div[contains(@class, 'es--wrap')]/div/div[contains(@class, 'ship-to--menuItem')]"
+        ],
+        "FORM_TITLE": "//div[contains(@class, 'form-item--title')]",
+        "SELECT_ITEM_CONTAINER": "//div[contains(@class, 'select--itemContainer')]",
+        "SELECT_LABEL": "//div[contains(@class, 'select--label')]",
+        "SELECT_TEXT": "//div[contains(@class, 'select--text')]",
+        "SELECT_SEARCH_CONTAINER": "//*[contains(@class, 'select--search')]",
+        "SELECT_ITEM": "//div[contains(@class, 'select--item')]",
+        "SAVE_BTN": "//*[contains(@class, 'saveBtn')]",
+        "COLLECT_BTN": [
+            "//*[contains(@class, 'checkin-start')]//*[contains(@class, 'checkin-footer')]//*[contains(@class, 'checkin-button')]",
+            "//*[@id='signButton' or contains(@class, 'checkin-button')]",
+            "//div[contains(@class, 'button') and (contains(., 'Collect') or contains(., '출석') or contains(., '적립'))]",
+            "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]"
+        ],
+        "LOGIN": {
+            "EMAIL": "input[placeholder*='Email'], input[label*='Email'], input[label*='이메일'], #fm-login-id, input[name='loginId'], .cosmos-input[type='text']",
+            "CONTINUE_BTN": "//button[contains(@class, 'cosmos-btn-primary') and (contains(., 'Continue') or contains(., '계속'))]",
+            "PASSWORD_CSS": "#fm-login-password, input[type='password']",
+            "SIGN_IN_BTN": "//button[contains(@class, 'cosmos-btn-primary') and (contains(., 'Sign in') or contains(., '로그인'))]",
+            "VERIFY_BTN": "//button[contains(., 'Verify') or contains(., 'Submit') or contains(., '확인') or contains(., 'OK')]",
+            "CODE_INPUTS": [
+                "input[placeholder*='code']", 
+                "input[id*='checkcode']", 
+                ".next-input.next-large input", 
+                "input[name='checkCode']"
+            ]
+        },
+        "ACCOUNT_INDICATORS": {
+            "SIGNED_IN": ".account-signed, .user-account-port, .nav-user-account",
+            "SIGNED_OUT": ".account-unsigned"
+        },
+        "MODAL_CLOSE": [
+            ".image-poplayer-close",
+            ".next-dialog-close",
+            ".poplayer-close",
+            "img.pop-close-btn",
+            ".btn-close",
+            ".close-button"
+        ],
+        "MODAL_OVERLAYS": ".image-poplayer-modal, .next-overlay-backdrop"
+    },
+    "KEYWORDS": {
+        "ALREADY_COLLECTED": [
+            'already', 'checked', 'collected', '받기 완료', '완료', '이미', 
+            'guadagna più monete', 'get more coins', '코인 더 받기',
+            'come back tomorrow to receive more coins', 'earn more coins'
+        ],
+        "LOGIN_INDICATORS": [
+            "sign out", "logout", "로그아웃", "my orders", "my coupons", "내 주문", "내 쿠폰"
+        ],
+        "LOGOUT_INDICATORS": [
+            "sign in", "register", "로그인", "가입"
+        ],
+        "2FA": ["verification code", "verify your identity", "enter code", "sent to your email", "인증 번호", "security verification"],
+        "UI_TEXT": {
+            "LANGUAGE_LABELS": ["language", "lingua", "언어", "idioma"],
+            "COUNTRY_LABELS": ["ship to", "country", "paese", "배송지", "국가", "enviar a", "spedire a"],
+            "ENGLISH_VARIANTS": ["english", "inglese"],
+            "KOREA_INDICATORS": ['korea', '한국', '대한민국', ' south korea', 'republic of korea', 'ko/', 'kr/']
+        }
+    },
+    "USER_AGENTS": {
+        "DESKTOP": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        "MOBILE": "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+    }
+}
+
 # Check if credentials are available
 if not ALIEXPRESS_EMAIL or not ALIEXPRESS_PASSWORD:
     print("Error: Environment variables for ALIEXPRESS_EMAIL and ALIEXPRESS_PASSWORD must be set.")
@@ -56,7 +136,6 @@ def random_sleep(min_seconds=1, max_seconds=3):
 def move_mouse_randomly(driver, element):
     """Move mouse with human-like randomness before clicking - safer version"""
     try:
-        # Simply move directly to the element - safest approach
         actions = ActionChains(driver)
         actions.move_to_element(element)
         actions.perform()
@@ -67,29 +146,22 @@ def move_mouse_randomly(driver, element):
 def type_like_human(element, text):
     """Type text with human-like timing and occasional mistakes that get corrected"""
     for char in text:
-        # Randomly decide if we make a typo (1% chance)
         if random.random() < 0.01:
-            # Make a typo
             typo_char = random.choice('qwertyuiopasdfghjklzxcvbnm')
             element.send_keys(typo_char)
             random_sleep(0.1, 0.3)
-            # Delete the typo
             element.send_keys(Keys.BACKSPACE)
             random_sleep(0.2, 0.5)
         
-        # Type the correct character
         element.send_keys(char)
-        
-        # Random pause between keystrokes
         random_sleep(0.05, 0.15)
-        
-        # Occasionally pause longer as if thinking
         if random.random() < 0.05:
             random_sleep(0.5, 1.2)
 
 def save_cookies(driver, path=COOKIE_FILE):
     """Save cookies from the current session to a JSON file"""
     try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         cookies = driver.get_cookies()
         with open(path, 'w') as f:
             json.dump(cookies, f)
@@ -104,35 +176,45 @@ def load_cookies(driver, path=COOKIE_FILE):
     try:
         if not os.path.exists(path):
             print(f"No cookie file found at {path}")
-            return False
+            return 0
             
         with open(path, 'r') as f:
             cookies = json.load(f)
             
         print(f"Applying {len(cookies)} cookies from {path}...")
-        # We must be on the domain to add cookies for it
-        driver.get("https://www.aliexpress.com/")
-        random_sleep(2, 3)
+        
+        # Ensure we are on the domain before adding cookies
+        if "aliexpress" not in driver.current_url:
+            driver.get(CONFIG["URLS"]["HOME"])
+            random_sleep(2, 3)
         
         count = 0
         for cookie in cookies:
             try:
-                # Selenium doesn't like 'expiry' in some cases if it's not an int
+                # Remove sameSite if it's not one of the allowed values
+                if 'sameSite' in cookie and cookie['sameSite'] not in ["Strict", "Lax", "None"]:
+                    del cookie['sameSite']
+                    
                 if 'expiry' in cookie:
                     cookie['expiry'] = int(cookie['expiry'])
+                
                 driver.add_cookie(cookie)
                 count += 1
             except Exception as e:
-                # Skip problematic cookies
+                # Log the error to help diagnose why it's failing
+                cookie_name = cookie.get('name', 'unknown')
+                cookie_domain = cookie.get('domain', 'unknown')
+                print(f"DEBUG: Failed to add cookie '{cookie_name}' (domain: {cookie_domain}): {e}")
                 continue
                 
         print(f"Successfully loaded {count}/{len(cookies)} cookies.")
-        driver.refresh()
-        random_sleep(3, 5)
-        return True
+        if count > 0:
+            driver.refresh()
+            random_sleep(3, 5)
+        return count
     except Exception as e:
         print(f"Failed to load cookies: {e}")
-        return False
+        return 0
 
 async def send_telegram_screenshot(driver, caption=""):
     """Take a screenshot and send it via Telegram for debugging"""
@@ -164,16 +246,14 @@ async def get_2fa_from_telegram():
         await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode='Markdown')
         print(f"Sent 2FA request to Telegram chat {TELEGRAM_CHAT_ID}")
         
-        # Get the latest update ID to ignore old messages
         last_update_id = -1
         updates = await bot.get_updates(offset=-1, timeout=10)
         if updates:
             last_update_id = updates[0].update_id
             
         print("Waiting for Telegram response...")
-        # Poll for new messages
         start_time = time.time()
-        timeout = 300  # 5 minutes timeout
+        timeout = 300
         
         while time.time() - start_time < timeout:
             updates = await bot.get_updates(offset=last_update_id + 1, timeout=30)
@@ -194,535 +274,528 @@ async def get_2fa_from_telegram():
         print(f"Error interacting with Telegram: {e}")
         return None
 
+def is_session_active(driver):
+    """Check if the current session is logged in using multiple indicators"""
+    try:
+        # 1. Check for specific session cookies first - most reliable
+        cookies = driver.get_cookies()
+        if any(c.get('name') in ['alf', 'ali_apache_id', 'xman_t'] for c in cookies):
+            return True
+
+        page_source = driver.page_source.lower()
+        
+        # 2. Check for positive UI indicators (sign out, etc)
+        if any(indicator in page_source for indicator in CONFIG["KEYWORDS"]["LOGIN_INDICATORS"]):
+            return True
+        
+        # 3. Check for specific CSS indicators for signed in
+        try:
+            driver.find_element(By.CSS_SELECTOR, CONFIG["SELECTORS"]["ACCOUNT_INDICATORS"]["SIGNED_IN"])
+            return True
+        except Exception:
+            pass
+            
+        # 4. Check for negative indicators ONLY if no positive indicators were found
+        if any(indicator in page_source for indicator in CONFIG["KEYWORDS"]["LOGOUT_INDICATORS"]):
+            return False
+            
+        try:
+            driver.find_element(By.CSS_SELECTOR, CONFIG["SELECTORS"]["ACCOUNT_INDICATORS"]["SIGNED_OUT"])
+            return False
+        except Exception:
+            pass
+        
+        return False
+    except Exception:
+        return False
+
 def login(driver):
     """Perform the login process with human-like behavior, checking for existing session first"""
     try:
         print("Checking if already logged in...")
         
-        # Try to load cookies if they exist
+        cookies_loaded = 0
         if os.path.exists(COOKIE_FILE):
             print("Found cookies.json, attempting to load session...")
-            load_cookies(driver)
+            cookies_loaded = load_cookies(driver)
         else:
-            driver.get("https://www.aliexpress.com/")
+            driver.get(CONFIG["URLS"]["HOME"])
             random_sleep(5, 7)
         
-        # Look for indicators of being logged in
-        page_source = driver.page_source.lower()
-        
-        # Multiple check points for login status
-        login_indicators = [
-            "sign out", "logout", "my orders", "message center", "my coupons",
-            "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지",
-            "account", "orders", "wish list", "쿠폰", "센터"
-        ]
-        is_logged_in = any(indicator in page_source for indicator in login_indicators)
-        
-        # Fallback: check for specific account elements that might be in the DOM but text not found
-        if not is_logged_in:
-            try:
-                # Check for account flyout or user profile elements
-                driver.find_element(By.CSS_SELECTOR, ".user-account-port, .nav-user-account, .account-unsigned, .account-signed")
-                is_logged_in = True
-            except:
-                pass
-        
-        if is_logged_in:
+        if is_session_active(driver):
             print("Detected existing session (Logged in).")
-            # Refresh cookies if we just logged in
             save_cookies(driver)
             return True
 
-        print("Not logged in (Indicators not found). Starting login process...")
-        # Navigate to a direct login-triggering URL
-        driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
+        print("Not logged in. Starting login process...")
+        driver.get(CONFIG["URLS"]["LOGIN_REDIRECT"])
         random_sleep(3, 5)
 
-        # ... (rest of the login logic remains the same until 2FA) ...
-
-        random_sleep(3, 5)
-
-        # Wait for the email input field
         wait = WebDriverWait(driver, 15)
         
-        # Check if we are actually on a login page or if we bypassed it
         try:
-            # More generic selector for the email field - added more variants
-            email_input = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='Email'], input[label*='Email'], #fm-login-id, input[name='loginId']"))
-            )
+            email_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, CONFIG["SELECTORS"]["LOGIN"]["EMAIL"])))
             print("Found email input field")
-        except:
-            # Re-check if we are logged in - maybe the redirect just took a moment
-            page_source = driver.page_source.lower()
-            if any(ind in page_source for ind in ["sign out", "logout", "로그아웃"]):
+        except Exception:
+            if any(ind in driver.page_source.lower() for ind in CONFIG["KEYWORDS"]["LOGIN_INDICATORS"]):
                 print("Bypassed login, login indicator detected.")
                 return True
-            
-            # Take a screenshot if we can't find login fields
             if USE_TELEGRAM:
-                asyncio.run(send_telegram_screenshot(driver, "⚠️ Could not find login fields. Check the page state."))
-            print("Error: Could not find login fields nor 'Sign Out' indicator.")
+                asyncio.run(send_telegram_screenshot(driver, "⚠️ Could not find login fields."))
+            print("Error: Could not find login fields.")
             return False
         
-        # Ensure email field is visible in the viewport
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", email_input)
         random_sleep(1, 2)
         
-        # Try to click directly without sophisticated mouse movement
         try:
             email_input.click()
-        except Exception as e:
-            print(f"Direct click failed: {e}, trying JavaScript click")
+        except Exception:
             driver.execute_script("arguments[0].click();", email_input)
         
         random_sleep(0.5, 1.5)
-        
-        # Type email with human-like behavior
         print("Entering email address...")
-        type_like_human(email_input, ALIEXPRESS_EMAIL)  # Use environment variable
+        type_like_human(email_input, ALIEXPRESS_EMAIL)
         random_sleep(1, 2)
         
-        # Find and click the Continue button
-        continue_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, 
-                "//button[contains(@class, 'cosmos-btn-primary') and .//span[text()='Continue']]"))
-        )
-        print("Found continue button")
-        
-        # Ensure button is in view and click it
+        continue_button = wait.until(EC.element_to_be_clickable((By.XPATH, CONFIG["SELECTORS"]["LOGIN"]["CONTINUE_BTN"])))
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", continue_button)
         random_sleep(0.5, 1)
-        
-        try:
-            continue_button.click()
-        except Exception as e:
-            print(f"Direct click failed: {e}, trying JavaScript click")
-            driver.execute_script("arguments[0].click();", continue_button)
-            
-        print("Clicked continue button")
+        driver.execute_script("arguments[0].click();", continue_button)
         random_sleep(2, 3)
         
-        # Wait for password field to appear
-        password_input = wait.until(
-            EC.presence_of_element_located((By.ID, "fm-login-password"))
-        )
-        print("Found password field")
-        
-        # Ensure password field is in view
+        password_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, CONFIG["SELECTORS"]["LOGIN"]["PASSWORD_CSS"])))
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", password_input)
         random_sleep(0.5, 1)
-        
-        # Click on password field
-        try:
-            password_input.click()
-        except Exception as e:
-            print(f"Direct click failed: {e}, trying JavaScript click")
-            driver.execute_script("arguments[0].click();", password_input)
-            
+        driver.execute_script("arguments[0].click();", password_input)
         random_sleep(0.5, 1)
-        
-        # Type password with human-like behavior
         print("Entering password...")
-        type_like_human(password_input, ALIEXPRESS_PASSWORD)  # Use environment variable
+        type_like_human(password_input, ALIEXPRESS_PASSWORD)
         random_sleep(1, 2)
         
-        # Find and click the Sign in button
-        sign_in_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, 
-                "//button[contains(@class, 'cosmos-btn-primary') and .//span[text()='Sign in']]"))
-        )
-        print("Found sign in button")
-        
-        # Ensure sign in button is in view and click it
+        sign_in_button = wait.until(EC.element_to_be_clickable((By.XPATH, CONFIG["SELECTORS"]["LOGIN"]["SIGN_IN_BTN"])))
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", sign_in_button)
         random_sleep(0.5, 1)
+        driver.execute_script("arguments[0].click();", sign_in_button)
         
-        try:
-            sign_in_button.click()
-        except Exception as e:
-            print(f"Direct click failed: {e}, trying JavaScript click")
-            driver.execute_script("arguments[0].click();", sign_in_button)
-            
-        print("Clicked sign in button")
-        
-        # --- Check for Email Verification / 2FA ---
         random_sleep(3, 5)
         
-        # Helper to check for 2FA keywords in page and iframes
         def check_for_2fa(driver):
             source = driver.page_source.lower()
-            keywords = ["verification code", "verify your identity", "enter code", "sent to your email", "인증 번호", "security verification"]
-            if any(k in source for k in keywords):
+            if any(k in source for k in CONFIG["KEYWORDS"]["2FA"]):
                 return True
-            
-            # Check iframes
-            iframes = driver.find_elements(By.TAG_NAME, "iframe")
-            for iframe in iframes:
+            for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
                 try:
                     driver.switch_to.frame(iframe)
                     inner_source = driver.page_source.lower()
                     driver.switch_to.default_content()
-                    if any(k in inner_source for k in keywords):
+                    if any(k in inner_source for k in CONFIG["KEYWORDS"]["2FA"]):
                         return True
-                except:
+                except Exception:
                     driver.switch_to.default_content()
             return False
 
         if check_for_2fa(driver):
-            print("\n" + "!" * 50)
-            print("ACTION REQUIRED: Email Verification Detected!")
+            print("\nACTION REQUIRED: Email Verification Detected!")
             if USE_TELEGRAM:
                 asyncio.run(send_telegram_screenshot(driver, "🚨 AliExpress 2FA Detected!"))
-            print("Please check your email and enter the verification code below.")
-            print("!" * 50 + "\n")
             
-            # Try to find the input field for the code
-            try:
-                # Helper to find code input, including in iframes
-                def find_code_input(driver):
-                    selectors = [
-                        "input[placeholder*='code']", "input[id*='checkcode']", 
-                        ".next-input.next-large input", "input[name='checkCode']",
-                        "input[class*='checkcode']", "input[aria-label*='code']"
-                    ]
-                    for s in selectors:
-                        try:
-                            el = driver.find_element(By.CSS_SELECTOR, s)
-                            if el.is_displayed(): return el
-                        except: continue
-                    
-                    # Try iframes
-                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
-                    for iframe in iframes:
-                        try:
-                            driver.switch_to.frame(iframe)
-                            for s in selectors:
-                                try:
-                                    el = driver.find_element(By.CSS_SELECTOR, s)
-                                    if el.is_displayed(): return el # Note: staying in iframe if found
-                                except: continue
-                            driver.switch_to.default_content()
-                        except: driver.switch_to.default_content()
-                    return None
+            def find_code_input(driver):
+                for s in CONFIG["SELECTORS"]["LOGIN"]["CODE_INPUTS"]:
+                    try:
+                        el = driver.find_element(By.CSS_SELECTOR, s)
+                        if el.is_displayed(): return el
+                    except Exception: continue
+                return None
 
-                code_input = find_code_input(driver)
-                
-                if code_input:
-                    if USE_TELEGRAM:
-                        verification_code = asyncio.run(get_2fa_from_telegram())
-                    else:
-                        if HEADLESS:
-                            print("CRITICAL: 2FA required in headless mode but Telegram is not configured. Cannot proceed.")
-                            return False
-                        verification_code = input("Enter verification code: ").strip()
-                    
-                    if verification_code:
-                        type_like_human(code_input, verification_code)
-                        random_sleep(1, 2)
-                        
-                        # Try to find and click submit/verify button
-                        try:
-                            verify_btn = driver.find_element(By.XPATH, "//button[contains(., 'Verify') or contains(., 'Submit') or contains(., '확인') or contains(., 'OK')]")
-                            verify_btn.click()
-                        except:
-                            code_input.send_keys(Keys.ENTER)
-                        
-                        print("Verification code submitted.")
-                        driver.switch_to.default_content() # Ensure we're back
-                    else:
-                        print("No verification code provided.")
-                else:
-                    print("Could not find verification code input field automatically.")
-                    if USE_TELEGRAM:
-                        asyncio.run(send_telegram_screenshot(driver, "🚨 2FA detected but I couldn't find the input field automatically."))
-                    
-                    if not HEADLESS:
-                        input("Press Enter here once you have finished the verification in the browser...")
-            except Exception as ve:
-                print(f"Error handling verification: {ve}")
-                driver.switch_to.default_content()
+            code_input = find_code_input(driver)
+            if code_input:
+                verification_code = asyncio.run(get_2fa_from_telegram()) if USE_TELEGRAM else (input("Enter verification code: ").strip() if not HEADLESS else None)
+                if verification_code:
+                    type_like_human(code_input, verification_code)
+                    random_sleep(1, 2)
+                    try:
+                        verify_btn = driver.find_element(By.XPATH, CONFIG["SELECTORS"]["LOGIN"]["VERIFY_BTN"])
+                        verify_btn.click()
+                    except Exception:
+                        code_input.send_keys(Keys.ENTER)
+            else:
+                if not HEADLESS:
+                    input("Press Enter here once you have finished the verification in the browser...")
 
-        # Wait for login to complete
         random_sleep(5, 7)
-        
-        # Final check if login was actually successful
-        if any(indicator in driver.page_source.lower() for indicator in ["sign out", "logout", "로그아웃"]):
+        if is_session_active(driver):
             print("Login successful")
             save_cookies(driver)
             return True
         else:
-            print("Login check failed. Please check the browser/screenshot.")
             if USE_TELEGRAM:
-                asyncio.run(send_telegram_screenshot(driver, "❌ Login failed. Check the state of the page."))
+                asyncio.run(send_telegram_screenshot(driver, "❌ Login failed."))
             return False
     
     except Exception as e:
         print(f"Login failed: {e}")
-        if USE_TELEGRAM:
-            asyncio.run(send_telegram_screenshot(driver, f"❌ Login exception: {e}"))
+        return False
+
+def close_modals(driver):
+    """Attempt to close any blocking modals or popups"""
+    try:
+        found_any = False
+        for selector in CONFIG["SELECTORS"]["MODAL_CLOSE"]:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                for el in elements:
+                    if el.is_displayed():
+                        driver.execute_script("arguments[0].click();", el)
+                        found_any = True
+                        random_sleep(0.5, 1)
+            except Exception: continue
+        
+        try:
+            driver.execute_script(f"""
+                const overlays = document.querySelectorAll('{CONFIG["SELECTORS"]["MODAL_OVERLAYS"]}');
+                overlays.forEach(el => el.remove());
+            """)
+        except Exception: pass
+        return found_any
+    except Exception as e:
+        print(f"DEBUG: Error in close_modals: {e}")
         return False
 
 def change_country_to_korea(driver):
-    """Change the country to Korea using the ship-to dropdown with manual confirmation at each step"""
+    """Change the country to Korea and language to English using the ship-to dropdown"""
     try:
         wait = WebDriverWait(driver, 15)
         
-        # Look for the ship-to dropdown with the exact class structure from the HTML
-        print("Looking for the ship-to dropdown...")
-        try:
-            # Try to find the main ship-to menu item
-            ship_to_dropdown = wait.until(
-                EC.element_to_be_clickable((By.XPATH, 
-                    "//div[contains(@class, 'ship-to--menuItem--')]"))
-            )
-            print("Found ship-to dropdown using menuItem class")
-        except Exception as e:
-            print(f"menuItem selector failed: {e}, trying alternative selector")
-            # Try looking for the div containing USD with dropdown icon
+        def is_ship_to_menu_open():
+            """Check if the ship-to dropdown menu is currently open"""
             try:
-                ship_to_dropdown = wait.until(
-                    EC.element_to_be_clickable((By.XPATH, 
-                        "//div[contains(@class, 'ship-to--text--')]/b[contains(text(), 'USD')]"))
-                )
-                print("Found ship-to dropdown using USD text")
-            except Exception as e2:
-                print(f"USD text selector failed too: {e2}, trying broader selector")
-                # Try the most specific element that should be unique to this dropdown
-                ship_to_dropdown = wait.until(
-                    EC.element_to_be_clickable((By.XPATH, 
-                        "//div[contains(@class, 'es--wrap--')]/div/div[contains(@class, 'ship-to--menuItem--')]"))
-                )
-                print("Found ship-to dropdown using es--wrap container")
-        
-        # Scroll to make the dropdown visible
-        driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", ship_to_dropdown)
-        random_sleep(1, 2)
-        
-        # Highlight the element to make it visible in logs
-        driver.execute_script("arguments[0].style.border='3px solid red'", ship_to_dropdown)
-        print("STEP 1: Ship-to dropdown found. Clicking automatically...")
-        random_sleep(1, 1)
-        
-        # Click on the ship-to dropdown
-        try:
-            ship_to_dropdown.click()
-            print("Clicked ship-to dropdown using normal click")
-        except Exception as e:
-            print(f"Normal click failed: {e}, trying JavaScript click")
-            driver.execute_script("arguments[0].click();", ship_to_dropdown)
-            print("Clicked ship-to dropdown using JavaScript")
-        
-        random_sleep(2, 3)
-        
-        # Now look for the Korea option in the country dropdown section
-        # First, find the country selector text element
-        try:
-            print("Looking for country selector...")
-            country_selector = wait.until(
-                EC.element_to_be_clickable((By.XPATH, 
-                    "//div[contains(@class, 'select--text')]"))
-            )
-            print("Found country selector")
-            
-            # Highlight the element
-            driver.execute_script("arguments[0].style.border='3px solid red'", country_selector)
-            print("STEP 2: Country selector found. Clicking automatically...")
-            random_sleep(1, 1)
-            
-            # Click on the country selector to open the dropdown
-            driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", country_selector)
-            random_sleep(0.5, 1)
-            
-            try:
-                country_selector.click()
-                print("Clicked country selector using normal click")
-            except Exception as e:
-                print(f"Normal click failed: {e}, trying JavaScript click")
-                driver.execute_script("arguments[0].click();", country_selector)
-                print("Clicked country selector using JavaScript")
-                
-            random_sleep(1.5, 2.5)
-            
-            # Now that the country dropdown is open, search for Korea
-            search_input = wait.until(
-                EC.presence_of_element_located((By.XPATH, 
-                    "//div[contains(@class, 'select--search')]/input"))
-            )
-            print("Found country search input")
-            
-            # Highlight the element
-            driver.execute_script("arguments[0].style.border='3px solid red'", search_input)
-            print("STEP 3: Search input found. Typing 'Korea'...")
-            random_sleep(1, 1)
-            
-            # Click on search input and type 'Korea'
-            search_input.click()
-            random_sleep(0.5, 1)
-            
-            # Try with English first, then Korean if needed
-            search_input.click()
-            random_sleep(0.5, 1)
-            
-            # Type 'Korea' and wait for dropdown
-            type_like_human(search_input, "Korea")
-            random_sleep(2, 3)
-            
-            try:
-                # Look for Korea option
-                korea_option = wait.until(
-                    EC.element_to_be_clickable((By.XPATH, 
-                        "//div[contains(@class, 'select--item') and (contains(., 'Korea') or contains(., 'South Korea'))]"))
-                )
-                print("Found Korea option (English). Clicking...")
-                driver.execute_script("arguments[0].click();", korea_option)
+                # If we see select items or search box, it's open
+                elements = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_ITEM"])
+                return any(el.is_displayed() for el in elements)
             except:
-                print("Korea not found with English term, trying Korean term '대한민국'...")
-                search_input.send_keys(Keys.CONTROL + "a")
-                search_input.send_keys(Keys.BACKSPACE)
-                random_sleep(0.5, 1)
-                type_like_human(search_input, "대한민국")
-                random_sleep(2, 3)
-                
+                return False
+
+        def close_ship_to_menu():
+            """Close the ship-to menu if it's open by clicking the toggle again"""
+            if is_ship_to_menu_open():
+                print("DEBUG: Closing ship-to menu...")
                 try:
-                    korea_option = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, 
-                            "//div[contains(@class, 'select--item') and (contains(., '대한민국') or contains(., '한국'))]"))
-                    )
-                    print("Found Korea option (Korean). Clicking...")
-                    driver.execute_script("arguments[0].click();", korea_option)
-                except:
-                    # Last resort: try pressing Enter if anything is selected
-                    print("Could not find Korea in list, attempting to submit search with Enter...")
-                    search_input.send_keys(Keys.ENTER)
-            
-            random_sleep(1.5, 2.5)
-            
-        except Exception as e:
-            print(f"Country selection process failed: {e}")
-            return False
-        
-        # Look for Save button
-        try:
-            print("Looking for Save/Apply button...")
-            save_button_selectors = [
-                "//div[contains(@class, 'es--saveBtn')]",
-                "//button[contains(., 'Save')]",
-                "//button[contains(., 'Apply')]",
-                "//div[contains(@class, 'button') and contains(., 'Save')]",
-                "//div[contains(@class, 'button') and contains(., 'Apply')]"
-            ]
-            
-            save_button = None
-            for selector in save_button_selectors:
-                try:
-                    save_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                    print(f"Found save button with selector: {selector}")
-                    break
-                except:
-                    continue
-            
-            if not save_button:
-                raise Exception("Could not find Save or Apply button")
-            
-            # Highlight and click
-            driver.execute_script("arguments[0].style.border='3px solid red'", save_button)
-            driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", save_button)
-            random_sleep(1, 1)
-            
-            try:
-                save_button.click()
-            except:
-                driver.execute_script("arguments[0].click();", save_button)
-            
-            print("Clicked Save button.")
-            random_sleep(3, 5)
-            print("Country has been saved")
+                    for selector in CONFIG["SELECTORS"]["SHIP_TO"]:
+                        dropdown = driver.find_element(By.XPATH, selector)
+                        driver.execute_script("arguments[0].click();", dropdown)
+                        random_sleep(1, 2)
+                        if not is_ship_to_menu_open(): return True
+                except: pass
             return True
-            
-        except Exception as e:
-            print(f"Save button interaction failed: {e}")
+
+        def open_ship_to_menu(retries=3):
+            for i in range(retries):
+                try:
+                    close_modals(driver)
+                    
+                    if is_ship_to_menu_open():
+                        print("DEBUG: Ship-to menu already open.")
+                        return True
+
+                    print(f"DEBUG: Opening ship-to dropdown (Attempt {i+1})...")
+                    ship_to_dropdown = None
+                    for selector in CONFIG["SELECTORS"]["SHIP_TO"]:
+                        try:
+                            ship_to_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                            break
+                        except Exception: continue
+                        
+                    if not ship_to_dropdown:
+                        if i < retries - 1:
+                            random_sleep(2, 3)
+                            continue
+                        raise Exception("Could not find ship-to dropdown")
+                        
+                    driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", ship_to_dropdown)
+                    random_sleep(1, 2)
+                    driver.execute_script("arguments[0].click();", ship_to_dropdown)
+                    random_sleep(3, 4)
+                    wait.until(EC.presence_of_element_located((By.XPATH, CONFIG["SELECTORS"]["SELECT_TEXT"])))
+                    return True
+                except Exception as e:
+                    print(f"DEBUG: open_ship_to_menu attempt {i+1} failed: {e}")
+                    random_sleep(2, 3)
             return False
+
+        def find_selector_by_label(label_keywords):
+            """Find a selector div by looking for title labels in siblings or parents"""
+            try:
+                # 1. Look for titles then find the following content's select
+                titles = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["FORM_TITLE"])
+                for title_el in titles:
+                    try:
+                        title_text = driver.execute_script("return arguments[0].innerText;", title_el).lower()
+                        if any(k in title_text for k in label_keywords):
+                            # In Italian/New UI, title and content are siblings. Try first 2 siblings.
+                            for i in range(1, 3):
+                                try:
+                                    content = title_el.find_element(By.XPATH, f"following-sibling::div[{i}]")
+                                    selector = content.find_element(By.XPATH, ".//" + CONFIG["SELECTORS"]["SELECT_TEXT"].lstrip("/"))
+                                    if selector: return selector
+                                except: continue
+                    except Exception: pass
+                
+                # 2. Fallback to searching all selectors and checking their text/context
+                selectors = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_TEXT"])
+                for sel in selectors:
+                    try:
+                        # Check text of the selector itself or its parent container for keywords
+                        parent_text = driver.execute_script("return arguments[0].parentElement.innerText;", sel).lower()
+                        if any(k in parent_text for k in label_keywords):
+                            return sel
+                    except: continue
+            except Exception: pass
+            return None
+
+        def save_and_reload():
+            print("DEBUG: Looking for Save button...")
+            save_button = None
+            try:
+                # Try multiple approaches for Save button
+                btns = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SAVE_BTN"])
+                for btn in btns:
+                    if btn.is_displayed():
+                        save_button = btn
+                        break
+                
+                if not save_button:
+                    # Look for text "Salva", "Save", etc.
+                    save_button = driver.execute_script("""
+                        return Array.from(document.querySelectorAll('div, button, span, a'))
+                            .find(el => {
+                                const t = el.innerText.trim().toLowerCase();
+                                return (t === 'salva' || t === 'save' || t === 'apply' || t === '확인') && el.offsetParent !== null;
+                            });
+                    """)
+            except Exception: pass
+
+            if not save_button:
+                print("DEBUG: Could not find Save button")
+                return False
+                
+            print("DEBUG: Clicking Save button...")
+            driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", save_button)
+            random_sleep(1.5, 2)
+            driver.execute_script("arguments[0].click();", save_button)
+            print("DEBUG: Clicked Save button. Waiting for page reload...")
+            random_sleep(10, 15)
+            try: wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            except Exception: pass
+            return True
+
+        # STAGE 1: SET LANGUAGE TO ENGLISH
+        if open_ship_to_menu():
+            print("DEBUG: Identifying language selector...")
+            language_selector = find_selector_by_label(CONFIG["KEYWORDS"]["UI_TEXT"]["LANGUAGE_LABELS"])
             
+            if not language_selector:
+                print("DEBUG: Label-based language identification failed, using index fallback (Stage 1)...")
+                selectors = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_TEXT"])
+                if len(selectors) >= 4: language_selector = selectors[3]
+                elif len(selectors) >= 2: language_selector = selectors[1]
+            
+            if language_selector:
+                try:
+                    current_lang = language_selector.text.lower()
+                    print(f"DEBUG: Current language detected: '{current_lang}'")
+                    
+                    if not any(v in current_lang for v in CONFIG["KEYWORDS"]["UI_TEXT"]["ENGLISH_VARIANTS"]) and current_lang != "":
+                        print("STEP 1: Changing language to English...")
+                        driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", language_selector)
+                        random_sleep(1, 2)
+                        driver.execute_script("arguments[0].click();", language_selector)
+                        random_sleep(2, 3)
+                        
+                        try:
+                            # Search box logic - specifically find the one belonging to this dropdown
+                            print("DEBUG: Identifying search input...")
+                            search_input = None
+                            try:
+                                # Try finding search input within the active popup/context
+                                search_input = language_selector.find_element(By.XPATH, "parent::*/following-sibling::div//input")
+                            except:
+                                try:
+                                    search_input = wait.until(EC.presence_of_element_located((By.XPATH, CONFIG["SELECTORS"]["SELECT_SEARCH_CONTAINER"] + "//input")))
+                                except: pass
+
+                            if search_input and search_input.is_displayed():
+                                print("DEBUG: Using search box for language...")
+                                driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", search_input)
+                                random_sleep(0.5, 1)
+                                search_input.send_keys(Keys.CONTROL + "a")
+                                search_input.send_keys(Keys.BACKSPACE)
+                                type_like_human(search_input, "English")
+                                random_sleep(2, 3)
+                            
+                            # Select option
+                            english_option = None
+                            try:
+                                options = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_ITEM"])
+                                print(f"DEBUG: Found {len(options)} list items")
+                                for opt in options:
+                                    try:
+                                        text = opt.text.strip().lower()
+                                        if any(v in text for v in CONFIG["KEYWORDS"]["UI_TEXT"]["ENGLISH_VARIANTS"]):
+                                            english_option = opt
+                                            break
+                                    except Exception: continue
+                            except Exception: pass
+
+                            if english_option:
+                                option_text = driver.execute_script("return arguments[0].innerText;", english_option)
+                                print(f"DEBUG: Clicking option: '{option_text}'.")
+                                driver.execute_script("arguments[0].click();", english_option)
+                                random_sleep(2, 3)
+                                if not save_and_reload():
+                                    close_ship_to_menu()
+                            else:
+                                print("DEBUG: Could not find English option after filtering. Aborting language change.")
+                                close_ship_to_menu()
+                        except Exception as ie:
+                            print(f"DEBUG: Inner language selection failed: {ie}")
+                            close_ship_to_menu()
+                except Exception as le:
+                    print(f"DEBUG: Language stage failed: {le}")
+                    close_ship_to_menu()
+            else:
+                print("DEBUG: Language selector not found.")
+                close_ship_to_menu()
+
+        # STAGE 2: SET COUNTRY TO KOREA
+        random_sleep(3, 5)
+        if open_ship_to_menu():
+            print("DEBUG: Identifying country selector...")
+            country_selector = find_selector_by_label(CONFIG["KEYWORDS"]["UI_TEXT"]["COUNTRY_LABELS"])
+            
+            if not country_selector:
+                print("DEBUG: Label-based country identification failed, using index fallback (Stage 2)...")
+                selectors = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_TEXT"])
+                country_selector = selectors[0] if selectors else None
+            
+            if country_selector:
+                try:
+                    print(f"STEP 2: Changing country to Korea (Current: {country_selector.text})...")
+                    driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", country_selector)
+                    random_sleep(1, 2)
+                    driver.execute_script("arguments[0].click();", country_selector)
+                    random_sleep(2, 3)
+                    
+                    search_container = wait.until(EC.presence_of_element_located((By.XPATH, CONFIG["SELECTORS"]["SELECT_SEARCH_CONTAINER"])))
+                    search_input = search_container.find_element(By.TAG_NAME, "input")
+                    driver.execute_script("arguments[0].click(); arguments[0].focus();", search_input)
+                    random_sleep(0.5, 1)
+                    search_input.send_keys(Keys.CONTROL + "a")
+                    search_input.send_keys(Keys.BACKSPACE)
+                    type_like_human(search_input, "Korea")
+                    random_sleep(2, 3)
+                    
+                    korea_found = False
+                    try:
+                        # Try finding by text or by the KR flag class
+                        korea_option = None
+                        options = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_ITEM"])
+                        for opt in options:
+                            inner_html = driver.execute_script("return arguments[0].innerHTML;", opt)
+                            inner_text = driver.execute_script("return arguments[0].innerText;", opt).lower()
+                            if " KR" in inner_html or any(k in inner_text for k in CONFIG["KEYWORDS"]["UI_TEXT"]["KOREA_INDICATORS"]):
+                                korea_option = opt
+                                break
+                        
+                        if korea_option:
+                            driver.execute_script("arguments[0].click();", korea_option)
+                            korea_found = True
+                    except Exception: pass
+                    
+                    if not korea_found:
+                        print("DEBUG: Retrying with 'South Korea'...")
+                        search_input.send_keys(Keys.CONTROL + "a")
+                        search_input.send_keys(Keys.BACKSPACE)
+                        type_like_human(search_input, "South Korea")
+                        random_sleep(2, 3)
+                        # Re-check options
+                        options = driver.find_elements(By.XPATH, CONFIG["SELECTORS"]["SELECT_ITEM"])
+                        for opt in options:
+                            inner_html = driver.execute_script("return arguments[0].innerHTML;", opt)
+                            inner_text = driver.execute_script("return arguments[0].innerText;", opt).lower()
+                            if " KR" in inner_html or any(k in inner_text for k in CONFIG["KEYWORDS"]["UI_TEXT"]["KOREA_INDICATORS"]):
+                                korea_option = opt
+                                driver.execute_script("arguments[0].click();", korea_option)
+                                korea_found = True
+                                break
+                    
+                    if korea_found:
+                        random_sleep(2, 3)
+                        if not save_and_reload():
+                            close_ship_to_menu()
+                            return False
+                        return True
+                    else:
+                        close_ship_to_menu()
+                except Exception as ce:
+                    print(f"DEBUG: Country stage failed: {ce}")
+                    close_ship_to_menu()
+        
+        return False
     except Exception as e:
-        print(f"Country change failed: {e}")
+        print(f"DEBUG: change_country_to_korea failed: {e}")
         return False
 
 def verify_korea_selected(driver):
     """Verify that Korea is currently selected as the country"""
     try:
         wait = WebDriverWait(driver, 10)
-        
-        # Multiple selectors for the ship-to element
-        selectors = [
-            "//div[contains(@class, 'ship-to--text--')]",
-            "//div[contains(@class, 'ship-to--menuItem--')]",
-            "//div[contains(@class, 'es--wrap--')]//div[contains(@class, 'ship-to--menuItem--')]",
-            "//div[contains(@class, 'header--right--')]//div[contains(@class, 'ship-to')]"
-        ]
-        
         ship_to_element = None
-        for selector in selectors:
+        for selector in CONFIG["SELECTORS"]["SHIP_TO"]:
             try:
                 ship_to_element = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
-                if ship_to_element:
-                    print(f"Found ship-to element with selector: {selector}")
-                    break
-            except:
-                continue
+                break
+            except Exception: continue
                 
         if not ship_to_element:
-            print("Warning: Could not find ship-to element to verify country.")
             return False
             
-        # Get the text content and include child elements
-        ship_to_text = driver.execute_script("return arguments[0].innerText;", ship_to_element)
-        print(f"Current ship-to text detected: {ship_to_text}")
+        ship_to_text = driver.execute_script("return arguments[0].innerText;", ship_to_element).lower()
         
-        # Standard check for indicators
-        ship_to_text_lower = ship_to_text.lower()
-        # 'kr' is common in 'KR/USD', '한국' is Korea in Korean
-        korea_indicators = ['korea', '한국', '대한민국', ' south korea', 'republic of korea', 'ko/', 'kr/']
-        
-        if any(indicator in ship_to_text_lower for indicator in korea_indicators):
+        if any(indicator in ship_to_text for indicator in CONFIG["KEYWORDS"]["UI_TEXT"]["KOREA_INDICATORS"]):
             print("Confirmation: Korea is already selected as the country.")
             return True
         else:
             print(f"Detected location text '{ship_to_text}', which does not match Korea indicators.")
             return False
-            
     except Exception as e:
         print(f"Error verifying Korea selection: {e}")
         return False
 
 def find_and_click_collect_button(driver):
-    """Find and click the coin collect button with multiple approaches"""
+    """Find and click the coin collect button with multiple approaches. 
+    Returns: (success, already_collected)"""
     print("STEP 7: Looking for the Collect button...")
     wait = WebDriverWait(driver, 15)
     
-    # List of possible selectors for the collect button
-    collect_button_selectors = [
-        "//*[@id='signButton' or contains(@class, 'checkin-button')]",
-        "//div[contains(@class, 'button') and (contains(., 'Collect') or contains(., '출석') or contains(., '적립'))]",
-        "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]"
-    ]
-    
-    for selector in collect_button_selectors:
+    # Android emulation stuck fix: check if body is filled or canvas exists
+    try:
+        page_content_length = driver.execute_script("return document.body ? document.body.innerText.length : 0;")
+        canvas_exists = driver.execute_script("return document.getElementsByTagName('canvas').length > 0;")
+        if page_content_length < 100 and not canvas_exists:
+            print("DEBUG: Page seems blank/stuck, refreshing...")
+            driver.refresh()
+            random_sleep(10, 15)
+    except Exception: pass
+
+    for selector in CONFIG["SELECTORS"]["COLLECT_BTN"]:
         try:
-            collect_button = wait.until(
-                EC.presence_of_element_located((By.XPATH, selector))
-            )
-            
-            # Check text to see if already collected
+            collect_button = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
             button_text = driver.execute_script("return arguments[0].innerText;", collect_button).lower()
-            already_collected_keywords = [
-                'already', 'checked', 'collected', '받기 완료', '완료', '이미', 
-                'guadagna più monete', 'get more coins'
-            ]
             
-            if any(k in button_text for k in already_collected_keywords):
-                print(f"Detected button text: '{button_text.strip()}'. Coins already redeemed for this session.")
-                return True # Treat as success since there's nothing left to do
+            if any(k in button_text for k in CONFIG["KEYWORDS"]["ALREADY_COLLECTED"]):
+                print(f"Detected button text: '{button_text.strip()}'. Coins already redeemed.")
+                return True, True # Success, already collected
             
             print(f"Found Collect button (Text: '{button_text.strip()}'). Clicking...")
             driver.execute_script("arguments[0].style.border='3px solid red'", collect_button)
@@ -733,79 +806,49 @@ def find_and_click_collect_button(driver):
             try:
                 move_mouse_randomly(driver, collect_button)
                 collect_button.click()
-            except:
+            except Exception:
                 driver.execute_script("arguments[0].click();", collect_button)
             
             random_sleep(5, 7)
-            return True
-        except:
-            continue
+            return True, False # Success, newly collected
+        except Exception: continue
     
-    # If no button found, try a more aggressive approach - look for any clickable element that might be the collect button
     try:
-        print("Trying fallback approach - looking for any element that might be the collect button")
-        
-        # Use JavaScript to find elements that might be collect buttons
+        # Final keyword-based check of the whole page text for already collected status
+        page_text = driver.execute_script("return document.body.innerText;").lower()
+        if any(k in page_text for k in CONFIG["KEYWORDS"]["ALREADY_COLLECTED"]):
+            print("DEBUG: Found 'already collected' keywords in page text.")
+            return True, True
+
         potential_buttons = driver.execute_script("""
             return Array.from(document.querySelectorAll('div, button, a'))
                   .filter(el => {
                       const text = el.textContent.toLowerCase();
-                      return (text.includes('collect') || 
-                              text.includes('check') || 
-                              text.includes('출석') || 
-                              text.includes('적립') || 
-                              text.includes('체크')) && 
-                             (el.className.includes('button') || 
-                              el.tagName === 'BUTTON' ||
-                              el.style.cursor === 'pointer');
+                      return (text.includes('collect') || text.includes('check') || text.includes('출석') || text.includes('적립')) && 
+                             (el.className.includes('button') || el.tagName === 'BUTTON' || el.style.cursor === 'pointer');
                   });
         """)
-        
-        if potential_buttons and len(potential_buttons) > 0:
-            print(f"Found {len(potential_buttons)} potential collect buttons using JavaScript")
-            
-            # Try clicking the first potential button
+        if potential_buttons:
             button = potential_buttons[0]
-            driver.execute_script("arguments[0].style.border='3px solid red'", button)
-            random_sleep(1, 2)
-            
-            # Scroll to button
             driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", button)
             random_sleep(1, 2)
-            
-            # Click the button using JavaScript
             driver.execute_script("arguments[0].click();", button)
-            
             print("Clicked potential collect button using JavaScript")
             random_sleep(5, 7)
-            return True
-    except Exception as e:
-        print(f"Fallback approach failed: {e}")
-    
-    print("Could not find any collect button despite multiple attempts")
-    print("*** WILL RESTART FROM STEP 1 (COUNTRY SELECTION) ***")
-    return False
+            return True, False
+    except Exception: pass
+    return False, False
 
 def enable_mobile_emulation(driver):
     """Enable mobile emulation to mimic an Android device with correct CDP parameters"""
     try:
         print("Switching to Android Mobile Emulation mode...")
-        # Correct CDP parameters for Emulation.setDeviceMetricsOverride
-        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
-            "width": 360,
-            "height": 800,
-            "deviceScaleFactor": 3,
-            "mobile": True
-        })
-        # Enable touch emulation separately
-        driver.execute_cdp_cmd("Emulation.setTouchEmulationEnabled", {
-            "enabled": True,
-            "configuration": "mobile"
-        })
-        driver.execute_cdp_cmd("Network.setUserAgentOverride", {
-            "userAgent": "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
-        })
-        random_sleep(2, 3)
+        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {"width": 360, "height": 800, "deviceScaleFactor": 3, "mobile": True})
+        driver.execute_cdp_cmd("Emulation.setTouchEmulationEnabled", {"enabled": True, "configuration": "mobile"})
+        driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": CONFIG["USER_AGENTS"]["MOBILE"]})
+        # Important: Refresh to apply mobile user agent and layout
+        driver.get(CONFIG["URLS"]["COIN_MOBILE"])
+        random_sleep(3, 5)
     except Exception as e:
         print(f"Warning: Failed to enable mobile emulation: {e}")
 
@@ -815,23 +858,13 @@ def disable_mobile_emulation(driver):
         print("Switching back to Desktop mode...")
         driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
         driver.execute_cdp_cmd("Emulation.setTouchEmulationEnabled", {"enabled": False})
-        driver.execute_cdp_cmd("Network.setUserAgentOverride", {
-            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-        })
+        driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": CONFIG["USER_AGENTS"]["DESKTOP"]})
         random_sleep(1, 2)
     except Exception as e:
         print(f"Warning: Failed to disable mobile emulation: {e}")
 
 def main():
-    """Main function to run the coin collection process"""
-    # ... (Setup code same as before)
-
-    """Main function to run the coin collection process"""
-    # Set up Chrome options
     chrome_options = Options()
-
-    # Use persistent user data directory for session cookies
-    # If not specified in ENV, we'll try to use a local 'chrome_data' folder
     effective_user_data = USER_DATA_DIR or os.path.join(os.path.dirname(os.path.abspath(__file__)), "chrome_data")
     
     try:
@@ -841,12 +874,9 @@ def main():
         print(f"Using persistent profile at: {effective_user_data}")
     except Exception as e:
         print(f"Warning: Could not set up persistent profile directory: {e}")
-        print("Continuing with a temporary profile (cookies will not be saved).")
 
-    # Ensure HOME is set for Chromium (crucial for systemd)
     if "HOME" not in os.environ:
         os.environ["HOME"] = "/tmp"
-        print("Warning: HOME environment variable was not set. Defaulting to /tmp")
 
     if HEADLESS:
         print("Running in headless mode")
@@ -855,192 +885,100 @@ def main():
         chrome_options.add_argument("--disable-setuid-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-gpu-sandbox")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-        chrome_options.add_argument("--disable-background-networking")
-        chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--remote-debugging-port=9222")
 
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--start-maximized")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     
-    # Initialize WebDriver
     try:
-        # Check if we are in a Linux environment where we might have a system-installed driver
         if sys.platform.startswith("linux"):
-            # Try to find system-installed Chromium binary
             potential_binaries = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"]
             binary_path = next((p for p in potential_binaries if os.path.exists(p)), None)
+            if binary_path: chrome_options.binary_location = binary_path
             
-            if binary_path:
-                print(f"Found system Chromium binary at: {binary_path}")
-                chrome_options.binary_location = binary_path
-                # Enhanced Internal check
-                try:
-                    import subprocess
-                    check = subprocess.run([binary_path, "--version"], capture_output=True, text=True, timeout=5)
-                    if check.returncode == 0:
-                        print(f"Chromium version check OK: {check.stdout.strip()}")
-                    else:
-                        print(f"Chromium version check FAILED (Code {check.returncode}): {check.stderr.strip()}")
-                except Exception as ce:
-                    print(f"Chromium execution check failed: {ce}")
-
-            # Try to find system-installed chromedriver
             potential_drivers = ["/usr/bin/chromedriver", "/usr/local/bin/chromedriver"]
             driver_path = next((p for p in potential_drivers if os.path.exists(p)), None)
-            
-            if driver_path:
-                print(f"Using system ChromeDriver at: {driver_path}")
-                # Enable verbose logging
-                service = Service(
-                    executable_path=driver_path,
-                    log_output="chromedriver.log",
-                    service_args=["--verbose"]
-                )
-            else:
-                print("System ChromeDriver not found, using ChromeDriverManager")
-                service = Service(ChromeDriverManager().install())
+            service = Service(executable_path=driver_path) if driver_path else Service(ChromeDriverManager().install())
         else:
-            # On Windows/Mac, use ChromeDriverManager
-            print("Using ChromeDriverManager to set up ChromeDriver")
             service = Service(ChromeDriverManager().install())
             
         driver = webdriver.Chrome(service=service, options=chrome_options)
         print("WebDriver initialized successfully")
     except Exception as e:
         print(f"Failed to initialize WebDriver: {e}")
-        if os.path.exists("chromedriver.log"):
-            print("\n--- LAST 20 LINES OF CHROMEDRIVER LOG ---")
-            with open("chromedriver.log", "r") as f:
-                lines = f.readlines()
-                for line in lines[-20:]:
-                    print(line.strip())
-        print("\nPossible fix: Try running: rm -rf /app/chrome_data/*")
         return
     
-    # Set a realistic user agent
-    driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-    })
-    
     try:
-        # Check cookie file age
-        if os.path.exists(COOKIE_FILE):
-            import datetime
-            mtime = os.path.getmtime(COOKIE_FILE)
-            last_mod = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Found {COOKIE_FILE} (Last modified: {last_mod})")
-
-        # Navigate to the website
-        driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
-        print("Website loaded")
-        
-        # Add random delay to simulate page load analysis by human
+        driver.get(CONFIG["URLS"]["COIN_MOBILE"])
         random_sleep(2, 4)
         
-        # Check if we need to login and proceed with login if necessary
-        login_successful = login(driver)
-        if not login_successful:
+        if not login(driver):
             print("Login process failed, attempting to continue anyway...")
         else:
             print("Successfully logged in")
 
-        # Main collection loop - allows restarting from Step 1 when needed
-        max_total_attempts = 3  # Maximum number of complete cycles to try
+        max_total_attempts = 3
         total_attempts = 0
         
         while total_attempts < max_total_attempts:
+            # Health check: is browser still open?
+            try:
+                _ = driver.window_handles
+            except Exception:
+                print("CRITICAL: Browser was closed unexpectedly. Exiting.")
+                return
+
             total_attempts += 1
-            print(f"Starting collection attempt {total_attempts}/{max_total_attempts}")
+            print(f"\n{'='*20} COLLECTION ATTEMPT {total_attempts}/{max_total_attempts} {'='*20}")
             
-            # STEP 1-5: Change country to Korea
-            print("Checking if country change to Korea is needed...")
-            disable_mobile_emulation(driver) # Desktop mode for check/change
-            
+            disable_mobile_emulation(driver)
             is_already_korea = verify_korea_selected(driver)
             
             should_proceed = False
             if is_already_korea:
-                print("Country is already Korea. Proceeding to collection.")
                 should_proceed = True
             elif change_country_to_korea(driver):
-                print("Country successfully changed to Korea.")
                 should_proceed = True
-                # Wait a bit for the page to reload/update after change
                 random_sleep(5, 7)
             
             if should_proceed:
-                # Switch to Mobile mode for the actual collection
+                # PHASE 1: MOBILE COLLECTION
+                print(f"\n{'-'*15} PHASE 1: MOBILE COLLECTION {'-'*15}")
                 enable_mobile_emulation(driver)
-                
-                # Navigate to the coin page
-                print("Going to coin page after country change (Mobile Emulation).")
-                driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
-                
-                # Give it some time for initial load
+                # driver.get is now inside enable_mobile_emulation for better flow
                 random_sleep(5, 8)
                 
-                # Check if page is stuck/blank and needs a refresh
-                try:
-                    # Look for signs of life (any content in the body or specific coin page elements)
-                    # We check for canvas (common in the game) or the check-in button ID
-                    page_content_check = driver.execute_script("""
-                        return {
-                            textLength: document.body ? document.body.innerText.length : 0,
-                            hasCanvas: document.querySelectorAll('canvas').length > 0,
-                            hasButton: document.querySelectorAll('#signButton, [class*="checkin-button"]').length > 0
-                        };
-                    """)
-                    
-                    if page_content_check['textLength'] < 100 and not page_content_check['hasCanvas'] and not page_content_check['hasButton']:
-                        print("Page seems stuck or blank (No text, canvas, or button). Triggering a refresh...")
-                        driver.refresh()
-                        random_sleep(10, 15) # Longer wait after refresh
-                    else:
-                        print(f"Page loaded content (Text: {page_content_check['textLength']}, Canvas: {page_content_check['hasCanvas']}, Button: {page_content_check['hasButton']}).")
-                        random_sleep(2, 4)
-                except Exception as e:
-                    print(f"Error checking page content: {e}. Refreshing just in case.")
-                    driver.refresh()
-                    random_sleep(8, 12)
+                mobile_success, mobile_already = find_and_click_collect_button(driver)
+                if mobile_success:
+                    if mobile_already: print("MOBILE: Already collected.")
+                    else: print("MOBILE: New collection successful.")
                 
-                # STEP 7: Look for the collect button
-                if find_and_click_collect_button(driver):
-                    print("Successfully collected coins!")
-                    disable_mobile_emulation(driver)
-                    break  # Exit the loop if successful
-                else:
-                    print(f"Failed to find collect button on attempt {total_attempts}, restarting from Step 1")
-                    # Continue loop to restart from Step 1
+                # PHASE 2: DESKTOP COLLECTION
+                print(f"\n{'-'*15} PHASE 2: DESKTOP COLLECTION {'-'*15}")
+                disable_mobile_emulation(driver)
+                driver.get(CONFIG["URLS"]["COIN_DESKTOP"])
+                random_sleep(8, 12)
+                
+                desktop_success, desktop_already = find_and_click_collect_button(driver)
+                if desktop_success:
+                    if desktop_already: print("DESKTOP: Already collected.")
+                    else: print("DESKTOP: New collection successful.")
+                
+                if mobile_success and desktop_success:
+                    print("\nCOMPLETED: Both phases reached a final state.")
+                    break
             else:
-                print(f"Country change failed on attempt {total_attempts}")
-                
-                # If we're on the last attempt and country change failed, try the coin page anyway
                 if total_attempts >= max_total_attempts:
-                    print("Maximum attempts reached. Trying coin page directly as last resort...")
                     enable_mobile_emulation(driver)
-                    driver.get("https://s.click.aliexpress.com/e/_DB2kEjh")
                     random_sleep(7, 10)
                     find_and_click_collect_button(driver)
                     disable_mobile_emulation(driver)
-                
-        if total_attempts >= max_total_attempts:
-            print("Maximum attempts reached without successful coin collection.")
-            
-        print("Coin collection process completed.")
         
+        print("Coin collection process completed.")
     except Exception as e:
         print(f"An error occurred: {e}")
-    
     finally:
-        # Don't close the browser immediately
-        print("Script execution complete. Closing browser in 5 seconds...")
-        random_sleep(3, 5)
         driver.quit()
 
 if __name__ == "__main__":

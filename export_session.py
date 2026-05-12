@@ -11,9 +11,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Load environment variables
 load_dotenv()
 
+COOKIE_FILE = os.getenv("COOKIE_FILE", "cookies/cookies.json")
+
 def export_session():
     """Run a visible browser to log in and save cookies for the prod server"""
-    print("Starting browser for session export...")
+    print(f"Starting browser for session export. Cookies will be saved to: {COOKIE_FILE}")
     
     chrome_options = Options()
     # Explicitly NOT headless
@@ -62,26 +64,43 @@ def export_session():
             if user_input == 'y':
                 # Double check login indicators with a broader list
                 page_source = driver.page_source.lower()
-                # Include account-specific keywords and regional variations
-                indicators = [
-                    "sign out", "logout", "my orders", "message center", "my coupons",
-                    "로그아웃", "내 주문", "메시지 센터", "내 쿠폰", "계정", "배송지",
-                    "account", "orders", "wish list", "쿠폰", "센터"
+                # Refined indicators matching collect_coins.py
+                login_indicators = [
+                    "sign out", "logout", "로그아웃", "my orders", "my coupons", "내 주문", "내 쿠폰"
+                ]
+                logout_indicators = [
+                    "sign in", "register", "로그인", "가입"
                 ]
                 
                 # Check for indicators in the main page source
-                is_logged_in = any(ind in page_source for ind in indicators)
+                is_logged_in = any(ind in page_source for ind in login_indicators)
+                is_logged_out = any(ind in page_source for ind in logout_indicators)
                 
+                # CSS Selectors from collect_coins.py
+                signed_in_selector = ".account-signed, .user-account-port, .nav-user-account"
+                signed_out_selector = ".account-unsigned"
+                
+                try:
+                    driver.find_element("css selector", signed_in_selector)
+                    is_logged_in = True
+                except: pass
+                
+                try:
+                    driver.find_element("css selector", signed_out_selector)
+                    is_logged_out = True
+                except: pass
+
                 # Also check if session cookies are present as a fallback
                 cookies = driver.get_cookies()
                 has_session_cookies = any(c.get('name') in ['alf', 'ali_apache_id', 'xman_t'] for c in cookies)
                 
-                if is_logged_in or has_session_cookies:
+                if (is_logged_in or has_session_cookies) and not (is_logged_out and not is_logged_in):
                     print(f"Login detected! (Indicator: {is_logged_in}, Cookies: {has_session_cookies})")
-                    with open("cookies.json", "w") as f:
+                    os.makedirs(os.path.dirname(os.path.abspath(COOKIE_FILE)), exist_ok=True)
+                    with open(COOKIE_FILE, "w") as f:
                         json.dump(cookies, f)
-                    print("\nSUCCESS: cookies.json has been created.")
-                    print("You can now upload cookies.json to your production server.")
+                    print(f"\nSUCCESS: {COOKIE_FILE} has been created.")
+                    print("You can now upload this file to your production server if needed.")
                     break
                 else:
                     print("Hmm, I don't see the login indicators yet. Please make sure you are fully logged in.")
