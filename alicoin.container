@@ -1,0 +1,13 @@
+[Container]
+Image=aliexpress-coin-bot
+Volume=./chrome_data:/app/chrome_data:Z,U
+Volume=./cookies:/app/cookies:Z,U
+Volume=./chromedriver.log:/app/chromedriver.log:Z,U
+EnvironmentFile=./.env
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+
