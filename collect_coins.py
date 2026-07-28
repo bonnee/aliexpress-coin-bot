@@ -53,8 +53,9 @@ CONFIG = {
     },
     "SELECTORS": {
         "SHIP_TO": [
+            "//div[contains(@class, 'ship-to--menuItem') and @role='button']",
+            "//div[@role='button' and contains(@aria-label, 'select a country')]",
             "//div[contains(@class, 'ship-to--menuItem')]",
-            "//div[contains(@class, 'ship-to--text')]",
             "//div[contains(@class, 'es--wrap')]/div/div[contains(@class, 'ship-to--menuItem')]"
         ],
         "FORM_TITLE": "//div[contains(@class, 'form-item--title')]",
@@ -63,7 +64,7 @@ CONFIG = {
         "SELECT_TEXT": "//div[contains(@class, 'select--text')]",
         "SELECT_SEARCH_CONTAINER": "//*[contains(@class, 'select--search')]",
         "SELECT_ITEM": "//div[contains(@class, 'select--item')]",
-        "SAVE_BTN": "//*[contains(@class, 'saveBtn')]",
+        "SAVE_BTN": "//*[contains(@class, 'saveBtn') or contains(@class, 'es--saveBtn')]",
         "COLLECT_BTN": [
             "//*[contains(@class, 'checkin-start')]//*[contains(@class, 'checkin-footer')]//*[contains(@class, 'checkin-button')]",
             "//*[@id='signButton' or contains(@class, 'checkin-button')]",
