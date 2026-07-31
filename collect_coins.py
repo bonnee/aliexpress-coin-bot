@@ -67,8 +67,9 @@ CONFIG = {
         "SAVE_BTN": "//*[contains(@class, 'saveBtn') or contains(@class, 'es--saveBtn')]",
         "COLLECT_BTN": [
             "//*[contains(@class, 'checkin-start')]//*[contains(@class, 'checkin-footer')]//*[contains(@class, 'checkin-button')]",
+            "//div[contains(@class, 'daily-sign')]//*[contains(@class, 'checkin-button') and (contains(., '받기') or contains(., 'Receive') or contains(., 'Collect'))]",
             "//*[@id='signButton' or contains(@class, 'checkin-button')]",
-            "//div[contains(@class, 'button') and (contains(., 'Collect') or contains(., '출석') or contains(., '적립'))]",
+            "//div[contains(@class, 'button') and (contains(., 'Collect') or contains(., '출석') or contains(., '적립') or contains(., '받기'))]",
             "//button[contains(@class, 'check-in') or contains(@class, 'checkin')]"
         ],
         "LOGIN": {
@@ -100,7 +101,8 @@ CONFIG = {
     },
     "KEYWORDS": {
         "ALREADY_COLLECTED": [
-            'already', 'checked', 'collected', '받기 완료', '완료', '이미', 
+            'already', 'checked', 'collected', '받기 완료', '완료', '이미',
+            '출석 완료', '이미 출석', '오늘 출석', '받았어요', '수령 완료',
             'guadagna più monete', 'get more coins', '코인 더 받기',
             'come back tomorrow to receive more coins', 'earn more coins'
         ],
@@ -825,7 +827,7 @@ def find_and_click_collect_button(driver):
             return Array.from(document.querySelectorAll('div, button, a'))
                   .filter(el => {
                       const text = el.textContent.toLowerCase();
-                      return (text.includes('collect') || text.includes('check') || text.includes('출석') || text.includes('적립')) && 
+                      return (text.includes('collect') || text.includes('check') || text.includes('출석') || text.includes('적립') || text.includes('받기')) && 
                              (el.className.includes('button') || el.tagName === 'BUTTON' || el.style.cursor === 'pointer');
                   });
         """)
